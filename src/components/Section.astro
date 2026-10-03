@@ -1,0 +1,67 @@
+---
+/**
+ * Section en grille — convention de mise en page de service-public.gouv.fr.
+ *
+ * Un titre court, un lien « Voir tout » quand la section a une page dédiée, et
+ * une grille de cartes : plusieurs par ligne sur grand écran, une seule colonne
+ * sur mobile.
+ *
+ * Le lien de tête est optionnel : une section qui n'a pas de page dédiée
+ * n'affiche pas de lien vide.
+ */
+interface Props {
+  titre: string;
+  /** Texte du lien de tête, par exemple « Voir tout ». */
+  lienLibelle?: string;
+  lienHref?: string;
+  /** Identifiant posé sur le lien, pour le réécrire côté client si besoin. */
+  lienId?: string;
+  /** Phrase d'introduction facultative, sous le titre. */
+  chapeau?: string;
+  /** Classes de la grille ; par défaut deux colonnes à partir de « sm ». */
+  grille?: string;
+  /** Identifiant posé sur la grille elle-même. */
+  grilleId?: string;
+  /** Identifiant et classes de la section. */
+  id?: string;
+  class?: string;
+}
+
+const {
+  titre,
+  lienLibelle,
+  lienHref,
+  lienId,
+  chapeau,
+  grille = 'grid gap-4 sm:grid-cols-2',
+  grilleId,
+  id,
+  class: classe = '',
+} = Astro.props;
+---
+
+<section id={id} class={classe}>
+  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <h2 class="text-lg font-bold text-slate-900 dark:text-white">{titre}</h2>
+    {
+      lienLibelle && (
+        <a
+          id={lienId}
+          href={lienHref ?? '#'}
+          class="inline-flex min-h-11 items-center text-sm font-medium text-indigo-600 underline-offset-4 hover:underline dark:text-indigo-400"
+        >
+          {lienLibelle} <span aria-hidden="true">→</span>
+        </a>
+      )
+    }
+    {
+      chapeau && (
+        <p class="w-full text-sm text-slate-500 dark:text-slate-400">{chapeau}</p>
+      )
+    }
+  </div>
+
+  <div id={grilleId} class={grille}>
+    <slot />
+  </div>
+</section>

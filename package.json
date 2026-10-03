@@ -1,0 +1,53 @@
+{
+  "name": "revision-droit",
+  "version": "1.0.0",
+  "description": "Espace de révision juridique personnel, chiffré, avec éditeur de fiches intégré.",
+  "scripts": {
+    "init:contenu": "node scripts/init-contenu.mjs",
+    "contenu": "node scripts/podcasts.mjs && node scripts/build-content.mjs",
+    "dev": "npm run contenu && astro dev",
+    "build": "npm run contenu && astro build",
+    "preview": "astro preview",
+    "podcasts": "node scripts/podcasts.mjs",
+    "podcasts:installer": "node scripts/installer-voix.mjs",
+    "verifier": "astro check",
+    "essais:relationnel": "tsx scripts/essais-relationnel.mts",
+    "essais:srs": "tsx scripts/essais-srs.mts",
+    "essais:niveau": "tsx scripts/essais-niveau.mts",
+    "verifier:pretests": "node scripts/verifier-pretests.mjs",
+    "essais:veridical": "tsx scripts/essais-veridical.mts",
+    "contrastes": "node scripts/verifier-contrastes.mjs",
+    "sources:recuperer": "node scripts/sources.mjs dechiffrer",
+    "sources:envoyer": "node scripts/sources.mjs chiffrer"
+  },
+  "dependencies": {
+    "@astrojs/svelte": "^9.0.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.3",
+    "d3-delaunay": "^6.0.4",
+    "d3-shape": "^3.2.0",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.3",
+    "svelte": "^5.57.1",
+    "tailwindcss": "^4.3.3",
+    "ts-fsrs": "^5.4.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@tailwindcss/typography": "^0.5.20",
+    "gray-matter": "^4.0.3",
+    "rehype-slug": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "private": true,
+  "type": "module"
+}

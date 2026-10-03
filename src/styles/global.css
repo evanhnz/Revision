@@ -1,0 +1,309 @@
+@import 'tailwindcss';
+@import './polices.css';
+@import './tokens.css';
+@plugin '@tailwindcss/typography';
+
+/* Le thème sombre est piloté par l'attribut data-theme posé sur <html>.
+   « systeme » n'est jamais écrit dans l'attribut : le script d'amorçage le
+   résout en « clair » ou « sombre » avant le premier rendu. */
+@custom-variant dark (&:where([data-theme='sombre'], [data-theme='sombre'] *));
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200;
+}
+
+/* --- Police de complément ------------------------------------------------ */
+/* Spectral, à utiliser avec parcimonie : citations, exergues, mentions. */
+.police-complement {
+  font-family: var(--font-serif);
+}
+
+/* --- Bandeau tricolore --------------------------------------------------- */
+/* Rappel discret des couleurs nationales, sans reprendre le bloc-marque de
+   l'État (logo et « République Française »), réservé à ses services. */
+.bandeau-tricolore {
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--etat-action) 0 33.333%,
+    var(--etat-fond-eleve) 33.333% 66.666%,
+    var(--etat-accent) 66.666% 100%
+  );
+}
+
+/* --- Texte sécable -------------------------------------------------------- */
+/* Les actualités citent des URL entières et des références normatives sans
+   espace. Sur un écran étroit, une telle chaîne dépasse la carte : elle est
+   alors soit rognée, soit à l'origine d'un défilement horizontal de toute la
+   page. « anywhere » autorise la coupure au dernier moment, sans altérer la
+   césure des mots ordinaires. */
+.texte-secable {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* --- Étiquette de catégorie ---------------------------------------------- */
+/* Convention reprise de service-public.gouv.fr : une courte étiquette
+   au-dessus du titre de la carte, jamais en dessous. */
+.etiquette {
+  @apply inline-flex items-center gap-1 text-xs font-bold tracking-wide uppercase;
+}
+
+/* --- Dépliant « Voir plus / Voir moins » ---------------------------------- */
+/* Composant générique : une zone de contenu que l'on déplie, bâtie sur
+   « details/summary » plutôt que sur du JavaScript. L'élément natif apporte
+   gratuitement le clavier, le rôle et l'annonce d'état aux lecteurs d'écran ;
+   il ne reste qu'à remplacer le triangle du navigateur par un bouton aux
+   couleurs de la charte, et à intervertir les deux libellés à l'ouverture. */
+.depliant > summary {
+  @apply inline-flex min-h-11 cursor-pointer items-center gap-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300;
+  list-style: none;
+}
+
+/* Le triangle par défaut, dans ses deux écritures (Chrome/Safari et Firefox). */
+.depliant > summary::-webkit-details-marker {
+  display: none;
+}
+.depliant > summary::marker {
+  content: '';
+}
+
+.depliant > summary:hover {
+  @apply underline;
+}
+
+/* Chevron dessiné en CSS : il pivote vers le haut une fois le bloc ouvert. */
+.depliant > summary::after {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-bottom: 0.15rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 150ms ease;
+}
+.depliant[open] > summary::after {
+  transform: rotate(-135deg);
+  margin-bottom: -0.15rem;
+}
+
+/* Un seul des deux libellés est visible à la fois. */
+.depliant[open] > summary .depliant-ouvrir,
+.depliant:not([open]) > summary .depliant-fermer {
+  display: none;
+}
+
+/* Variante « titre dépliant » : ce n'est plus un lien « Voir plus » mais la
+   ligne de titre elle-même qui ouvre et referme la section. Le chevron passe
+   devant le titre (« order: -1 ») pour se lire comme une arborescence, et la
+   couleur d'accent laisse la place à celle du texte courant. */
+.depliant-titre > summary {
+  @apply flex w-full gap-3 text-slate-900 dark:text-white;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.depliant-titre > summary:hover {
+  text-decoration: none;
+}
+
+.depliant-titre > summary:hover :is(h2, h3) {
+  @apply underline;
+}
+
+.depliant-titre > summary::after {
+  order: -1;
+  flex: none;
+  margin-bottom: 0;
+  @apply text-slate-400 dark:text-slate-500;
+}
+
+.depliant-titre[open] > summary::after {
+  margin-bottom: 0;
+}
+
+/* Le compteur de fiches n'a de sens qu'une fois la section refermée : ouverte,
+   la liste est sous les yeux. */
+.depliant-titre[open] > summary .depliant-compte {
+  display: none;
+}
+
+/* La zone dépliée est bornée : un historique qui grandit ne doit pas
+   allonger la page indéfiniment, il défile sur lui-même. */
+.depliant-corps {
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* --- Termes du glossaire ------------------------------------------------- */
+/* Soulignement discret + curseur « aide » : se distingue nettement d'un lien. */
+dfn.terme-glossaire {
+  font-style: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: help;
+  @apply decoration-indigo-400 dark:decoration-indigo-400/70;
+}
+
+dfn.terme-glossaire:hover,
+dfn.terme-glossaire[data-ouvert],
+dfn.terme-glossaire:focus-visible {
+  @apply rounded bg-indigo-50 outline-none ring-2 ring-indigo-300 dark:bg-indigo-950/60 dark:ring-indigo-500/60;
+}
+
+#bulle-glossaire {
+  margin: 0;
+  inset: auto;
+}
+
+/* --- Contenu de cours ---------------------------------------------------- */
+.contenu {
+  @apply prose prose-slate max-w-none dark:prose-invert
+         prose-headings:scroll-mt-24 prose-headings:font-semibold
+         prose-a:text-indigo-600 dark:prose-a:text-indigo-400
+         prose-table:text-sm;
+}
+
+/* Les citations en exergue passent à la police de complément. */
+.contenu blockquote {
+  font-family: var(--font-serif);
+  font-style: normal;
+}
+
+/* Animation de retournement des flashcards. */
+.carte-3d {
+  perspective: 1400px;
+}
+.carte-face {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+/* --- Accessibilité ------------------------------------------------------- */
+/* Anneau de focus visible et homogène, condition d'un site utilisable au
+   clavier — la charte de l'État en fait un point dur. */
+:where(a, button, [role='button'], summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--etat-action);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- Barre de défilement -------------------------------------------------- */
+/* Discrète et accordée au thème, sur la page comme sur les zones défilantes.
+   Deux écritures pour deux familles de navigateurs, puisant dans les mêmes
+   tokens : la barre suit donc le thème clair ou sombre comme le reste.
+
+   Attention à l'ordre : Blink comprend « scrollbar-width » et
+   « scrollbar-color », mais dès que l'une des deux est posée il ignore les
+   pseudo-éléments ci-dessous et rend sa barre native, flèches comprises. Le
+   @supports réserve donc ces propriétés à Firefox, seul à ne pas reconnaître
+   le sélecteur ::-webkit-scrollbar. */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--etat-defilement) transparent;
+  }
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  /* La bordure transparente, conjuguée au rognage sur la boîte de
+     remplissage, amincit le curseur sans réduire la cible de pointage :
+     on garde 10 px à saisir pour 4 px visibles. */
+  background-color: var(--etat-defilement);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--etat-defilement-survol);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Pas de flèches aux extrémités : elles alourdiraient une barre qu'on veut
+   oublier. */
+*::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* --- Rubans défilants ------------------------------------------------------ */
+/* Une rangée d'icônes qui déborde n'a pas besoin d'une barre : elle lui prend
+   de la hauteur et tranche sur le fond. On la masque, et « lib/defilement.ts »
+   pose « data-deborde » pour estomper le bord — celui-là seulement — derrière
+   lequel il reste quelque chose à voir. Sans JavaScript, le ruban défile
+   toujours : il perd l'estompe, pas la fonction. */
+.defilement-masque {
+  scrollbar-width: none;
+}
+.defilement-masque::-webkit-scrollbar {
+  display: none;
+}
+
+.defilement-masque[data-deborde='fin'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+.defilement-masque[data-deborde='debut'] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2rem);
+  mask-image: linear-gradient(to right, transparent, #000 2rem);
+}
+.defilement-masque[data-deborde='deux'] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 2rem,
+    #000 calc(100% - 2rem),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 2rem,
+    #000 calc(100% - 2rem),
+    transparent
+  );
+}
+
+/* Sur les listes longues déjà marquées, le curseur s'efface encore un peu.
+   Il reste toujours visible, si ténu soit-il : le faire disparaître hors
+   survol priverait d'un repère les écrans tactiles, qui ne survolent pas. */
+.defilement-fin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.defilement-fin::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--etat-defilement) 55%, transparent);
+  border-width: 2px;
+}
+.defilement-fin:hover::-webkit-scrollbar-thumb,
+.defilement-fin:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--etat-defilement);
+}

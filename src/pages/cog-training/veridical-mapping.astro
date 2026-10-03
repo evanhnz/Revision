@@ -1,0 +1,98 @@
+---
+/**
+ * Exercice Veridical Mapping.
+ *
+ * Entraînement perceptif à la mise en correspondance de deux dimensions. Aucune
+ * donnée du concours : la page n'est pas chiffrée, mais elle reste derrière
+ * l'écran de connexion comme le reste du site.
+ */
+import Base from '../../layouts/Base.astro';
+import VeridicalMapping from '../../features/veridical-mapping/composants/VeridicalMapping.svelte';
+---
+
+<Base titre="Veridical Mapping" actif="cog-training">
+  <header class="mb-5">
+    <a
+      id="retour"
+      href="../"
+      class="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+      >← Cog-Training</a
+    >
+    <h1 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">Veridical Mapping</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+      Deux dimensions perceptives vous sont présentées en vis-à-vis — une taille et une intensité
+      sonore, une position et une teinte. Il s'agit d'en établir la correspondance, de plus en plus
+      finement : après deux réussites l'écart entre les deux candidats se resserre, après une erreur
+      il s'élargit, jusqu'à cerner le plus petit écart que vous distinguez encore.
+    </p>
+
+    <details class="mt-3 max-w-3xl text-sm">
+      <summary class="cursor-pointer text-indigo-600 hover:underline dark:text-indigo-400">
+        Ce que mesure l'exercice, ce qu'il ne promet pas, et d'où il vient
+      </summary>
+      <div class="mt-2 space-y-3 text-slate-500 dark:text-slate-400">
+        <p>
+          <strong>Deux familles de dimensions, et une règle.</strong> Stevens (1957) distingue les
+          continuums <em>prothétiques</em>, qui répondent à « combien » — intensité, taille, durée,
+          luminosité — et les continuums <em>métathétiques</em>, qui répondent à « où » ou « quel
+          type » — hauteur, position, teinte. L'exercice ne relie par défaut que deux dimensions
+          d'une même famille : on ne fait pas correspondre un « combien » à un « où ».
+        </p>
+        <p>
+          Cette règle a un coût qu'il vaut mieux connaître : elle écarte précisément
+          <strong>hauteur ↔ taille</strong> et <strong>hauteur ↔ luminosité</strong>, qui comptent
+          parmi les correspondances transmodales les mieux répliquées de la littérature — la hauteur
+          étant métathétique quand la taille et la luminosité sont prothétiques. Un réglage permet
+          donc d'ouvrir ces paires, et le tableau de bord les suit à part.
+        </p>
+        <p>
+          <strong>Ce que la mesure vaut.</strong> Le seuil est exprimé en pas de stimulus, et les
+          plages de chaque dimension sont découpées en pas perceptivement réguliers : un seuil de
+          sept pas en taille se compare donc directement à sept pas en intensité sonore, bien que
+          les pixels et les décibels n'aient aucune unité commune.
+        </p>
+        <p>
+          <strong>Ce que ce n'est pas.</strong> C'est un entraînement perceptif. Ce n'est ni un test
+          clinique, ni un diagnostic, ni la reproduction d'une capacité savante ou autistique.
+          <strong>Rien ne garantit non plus que s'y entraîner améliore quoi que ce soit ailleurs</strong> :
+          le transfert d'un entraînement perceptif vers des tâches non entraînées est une question
+          ouverte. C'est de l'exercice sur une tâche difficile, pas une promesse.
+        </p>
+        <p class="border-t border-slate-200 pt-3 text-xs dark:border-slate-800">
+          <strong>Sources.</strong> Le cadre conceptuel — mise en correspondance d'éléments
+          homologues entre structures isomorphes, bidirectionnalité, redintégration — vient de
+          Mottron, Bouvet, Bonnel, Samson, Burack, Dawson et Heaton,
+          <em>Veridical mapping in the development of exceptional autistic abilities</em>,
+          <em>Neuroscience &amp; Biobehavioral Reviews</em>, 2013, 37(2), 209-228, article en libre
+          accès sous licence CC BY-NC-ND 3.0 ; il est cité, non reproduit. L'architecture
+          d'entraînement — hub de paires, seuil adaptatif par paire, arbre couvrant — s'inspire de
+          l'outil <em>VM Trainer</em> de kdevos-lab, qui n'a pas pu être consulté depuis cet
+          environnement : la mécanique ci-dessous est construite de première main à partir de la
+          pratique psychophysique établie.
+        </p>
+      </div>
+    </details>
+  </header>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Chargement de l'exercice…</div>
+
+  <div id="exercice" class="hidden">
+    <!--
+      client:only : la chaîne audio et les seuils ne sont chargés que sur cette
+      page, jamais au chargement des autres pages du site.
+    -->
+    <VeridicalMapping client:only="svelte" />
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { lien } from '../../lib/ui';
+
+  document.getElementById('retour')!.setAttribute('href', lien('/cog-training/'));
+
+  auDeverrouillage(() => {
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('exercice')!.classList.remove('hidden');
+  });
+</script>

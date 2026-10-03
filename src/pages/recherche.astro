@@ -1,0 +1,197 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Recherche" actif="recherche">
+  <h1 class="mb-4 text-2xl font-bold text-slate-900 dark:text-white">Recherche</h1>
+
+  <div class="mb-5 space-y-3">
+    <div class="relative">
+      <input
+        id="champ-recherche"
+        type="search"
+        placeholder="Mot-clé, notion, arrêt, date…"
+        autocomplete="off"
+        class="w-full rounded-xl border border-slate-300 bg-white py-3 pr-4 pl-11 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-indigo-900"
+      />
+      <span class="absolute top-1/2 left-4 -translate-y-1/2 text-slate-400" aria-hidden="true">🔎</span>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <select id="recherche-matiere" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+        <option value="">Toutes les matières</option>
+      </select>
+      <select id="recherche-statut" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+        <option value="">Tous les niveaux de maîtrise</option>
+        <option value="faible">Maîtrise &lt; 50 %</option>
+        <option value="moyenne">Maîtrise 50–80 %</option>
+        <option value="acquis">Maîtrise ≥ 80 %</option>
+        <option value="non-lu">Non lues</option>
+      </select>
+      <div id="tags-frequents" class="flex flex-wrap gap-1.5"></div>
+    </div>
+  </div>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Déchiffrement de l'index…</div>
+  <p id="compte-resultats" class="mb-3 hidden text-sm text-slate-500 dark:text-slate-400"></p>
+  <div id="resultats" class="space-y-3"></div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { construireVue, type ProgressionFiche } from '../lib/agregats';
+  import { chargerIndexRecherche, type EntreeRecherche } from '../lib/contenu';
+  import { lien, normaliser, pluriel } from '../lib/ui';
+
+  let index: EntreeRecherche[] = [];
+  let progressions = new Map<string, ProgressionFiche>();
+  let tagActif = '';
+
+  const $ = (id: string) => document.getElementById(id)!;
+
+  /** Extrait un court passage autour de la première occurrence trouvée. */
+  function extrait(texte: string, termes: string[]): { avant: string; trouve: string; apres: string } | null {
+    const normalise = normaliser(texte);
+    let position = -1;
+    let longueur = 0;
+    for (const terme of termes) {
+      const p = normalise.indexOf(terme);
+      if (p !== -1 && (position === -1 || p < position)) {
+        position = p;
+        longueur = terme.length;
+      }
+    }
+    if (position === -1) return null;
+    const debut = Math.max(0, position - 70);
+    const fin = Math.min(texte.length, position + longueur + 110);
+    return {
+      avant: (debut > 0 ? '… ' : '') + texte.slice(debut, position),
+      trouve: texte.slice(position, position + longueur),
+      apres: texte.slice(position + longueur, fin) + (fin < texte.length ? ' …' : ''),
+    };
+  }
+
+  function filtreStatut(p: ProgressionFiche | undefined, statut: string) {
+    if (!statut || !p) return true;
+    if (statut === 'faible') return p.maitrise < 0.5;
+    if (statut === 'moyenne') return p.maitrise >= 0.5 && p.maitrise < 0.8;
+    if (statut === 'acquis') return p.maitrise >= 0.8;
+    if (statut === 'non-lu') return !p.lu;
+    return true;
+  }
+
+  function rechercher() {
+    const requete = ($('champ-recherche') as HTMLInputElement).value.trim();
+    const matiere = ($('recherche-matiere') as HTMLSelectElement).value;
+    const statut = ($('recherche-statut') as HTMLSelectElement).value;
+    const termes = normaliser(requete).split(/\s+/).filter((t) => t.length >= 2);
+
+    const zone = $('resultats');
+    zone.innerHTML = '';
+
+    const resultats = index
+      .filter((e) => {
+        if (matiere && e.matiere !== matiere) return false;
+        if (tagActif && !e.tags.includes(tagActif)) return false;
+        if (!filtreStatut(progressions.get(e.id), statut)) return false;
+        if (!termes.length) return true;
+        const corpus = normaliser(`${e.titre} ${e.tags.join(' ')} ${e.texte}`);
+        return termes.every((t) => corpus.includes(t));
+      })
+      .slice(0, 60);
+
+    $('compte-resultats').textContent = resultats.length
+      ? `${pluriel(resultats.length, 'fiche trouvée', 'fiches trouvées')}`
+      : 'Aucune fiche ne correspond.';
+    $('compte-resultats').classList.remove('hidden');
+
+    for (const entree of resultats) {
+      const p = progressions.get(entree.id);
+      const pourcent = Math.round((p?.maitrise ?? 0) * 100);
+      const carte = document.createElement('a');
+      carte.href = `${lien('/fiche/')}?id=${encodeURIComponent(entree.id)}`;
+      carte.className =
+        'block rounded-xl border border-slate-200 bg-white p-4 transition hover:border-indigo-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700';
+      carte.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-medium text-slate-900 dark:text-white" data-titre></p>
+            <p class="mt-0.5 text-xs text-slate-400" data-contexte></p>
+          </div>
+          <span class="shrink-0 text-sm font-semibold text-slate-400">${pourcent} %</span>
+        </div>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-extrait></p>`;
+      carte.querySelector('[data-titre]')!.textContent = entree.titre;
+      carte.querySelector('[data-contexte]')!.textContent = (entree.chemin ?? [entree.matiere, entree.fascicule]).join(' › ');
+
+      const zoneExtrait = carte.querySelector('[data-extrait]')!;
+      const morceau = termes.length ? extrait(entree.texte, termes) : null;
+      if (morceau) {
+        zoneExtrait.append(morceau.avant);
+        const marque = document.createElement('mark');
+        marque.className = 'rounded bg-amber-200 px-0.5 dark:bg-amber-500/40 dark:text-amber-100';
+        marque.textContent = morceau.trouve;
+        zoneExtrait.append(marque, morceau.apres);
+      } else {
+        zoneExtrait.textContent = entree.tags.join(' · ');
+      }
+      zone.appendChild(carte);
+    }
+  }
+
+  async function initialiser() {
+    const [donnees, vue] = await Promise.all([chargerIndexRecherche(), construireVue()]);
+    index = donnees;
+    progressions = new Map(vue.fiches.map((f) => [f.fiche.id, f]));
+
+    const selectMatiere = $('recherche-matiere') as HTMLSelectElement;
+    for (const matiere of vue.matieres) {
+      const option = document.createElement('option');
+      option.value = matiere.nom;
+      option.textContent = matiere.nom;
+      selectMatiere.appendChild(option);
+    }
+
+    // Les dix tags les plus fréquents, cliquables.
+    const compteTags = new Map<string, number>();
+    for (const entree of index) {
+      for (const tag of entree.tags) compteTags.set(tag, (compteTags.get(tag) ?? 0) + 1);
+    }
+    const zoneTags = $('tags-frequents');
+    for (const [tag] of [...compteTags.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+      const bouton = document.createElement('button');
+      bouton.type = 'button';
+      bouton.className =
+        'rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800';
+      bouton.textContent = tag;
+      bouton.addEventListener('click', () => {
+        tagActif = tagActif === tag ? '' : tag;
+        for (const autre of zoneTags.querySelectorAll('button')) {
+          autre.classList.toggle(
+            'bg-indigo-600',
+            autre.textContent === tagActif && tagActif !== '',
+          );
+          autre.classList.toggle('text-white', autre.textContent === tagActif && tagActif !== '');
+        }
+        rechercher();
+      });
+      zoneTags.appendChild(bouton);
+    }
+
+    let minuteur: number;
+    $('champ-recherche').addEventListener('input', () => {
+      window.clearTimeout(minuteur);
+      minuteur = window.setTimeout(rechercher, 150);
+    });
+    $('recherche-matiere').addEventListener('change', rechercher);
+    $('recherche-statut').addEventListener('change', rechercher);
+
+    $('chargement').classList.add('hidden');
+    rechercher();
+    ($('champ-recherche') as HTMLInputElement).focus();
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(initialiser);
+</script>

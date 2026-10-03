@@ -1,0 +1,60 @@
+---
+/**
+ * Barre de progression du chargement de la page.
+ *
+ * Le balisage vit ici, la logique dans « lib/chargement.ts » : la barre est
+ * pilotée par la promesse de déchiffrement elle-même, jamais par un minuteur
+ * indépendant. Si elle se fige avant 100 %, c'est que le déchiffrement est
+ * réellement bloqué — le garde-fou prend alors le relais.
+ *
+ * Elle est décorative pour un lecteur d'écran tant qu'elle n'annonce rien de
+ * plus que le message d'attente déjà présent dans la page, mais elle porte
+ * les attributs ARIA attendus d'une barre de progression.
+ */
+---
+
+<div
+  id="barre-progression"
+  role="progressbar"
+  aria-label="Chargement de la page"
+  aria-valuemin="0"
+  aria-valuemax="100"
+  aria-valuenow="0"
+  data-etat="inactif"
+  hidden
+  class="pointer-events-none fixed inset-x-0 top-0 z-[200] h-[3px] bg-transparent"
+>
+  <div
+    id="barre-progression-jauge"
+    class="h-full w-0 transition-[width] duration-200 ease-out"
+  >
+  </div>
+</div>
+
+<style>
+  /* La couleur suit le thème actif : Bleu France en clair, indigo clair en
+     sombre — ce sont les tokens « --etat-* » définis par la charte. */
+  #barre-progression-jauge {
+    background-color: var(--etat-action);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--etat-action) 60%, transparent);
+  }
+
+  /* En cas d'échec ou de dépassement du délai, la barre ne disparaît pas en
+     silence : elle se fige et passe à la couleur d'alerte, en écho au message
+     d'erreur affiché dans la page. */
+  #barre-progression[data-etat='erreur'] #barre-progression-jauge {
+    background-color: var(--etat-accent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--etat-accent) 60%, transparent);
+  }
+
+  #barre-progression[data-etat='termine'] {
+    opacity: 0;
+    transition: opacity 0.35s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #barre-progression-jauge {
+      transition: none;
+    }
+  }
+</style>

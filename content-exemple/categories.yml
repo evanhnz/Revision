@@ -1,0 +1,16 @@
+# Arborescence des catégories.
+# Fixe l'ordre d'affichage et conserve les catégories encore vides.
+# Une fiche dont le chemin mène à une catégorie absente d'ici l'y ajoute
+# automatiquement, en fin de niveau. Ce fichier se gère depuis l'éditeur.
+- nom: "Droit des obligations"
+  icone: "📜"
+- nom: "Droit administratif"
+  icone: "🏛️"
+- nom: "Droit pénal"
+  icone: "⚖️"
+- nom: "Droit budgétaire"
+  icone: "💶"
+- nom: "Histoire du droit des obligations"
+  icone: "📚"
+- nom: "Anglais juridique"
+  icone: "🇬🇧"

@@ -1,0 +1,538 @@
+---
+import Base from '../layouts/Base.astro';
+import { base } from '../lib/ui';
+---
+
+<Base titre="Flashcards" actif="flashcards">
+  <div id="chargement" class="py-20 text-center text-slate-400">Préparation de la session…</div>
+
+  <!-- Choix de la session -->
+  <section id="accueil-session" class="hidden">
+    <h1 class="mb-1 text-2xl font-bold text-slate-900 dark:text-white">Session de flashcards</h1>
+    <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      La file du jour est construite automatiquement par répétition espacée (SM-2). Chaque session
+      est plafonnée, les cartes les plus en retard servies en premier.
+    </p>
+
+    <!-- Rappel ciblé : la session ne porte que sur les fiches d'une séance
+         passée, transmises par la page de planification. -->
+    <div
+      id="bandeau-rappel"
+      class="mb-5 hidden rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/40"
+    >
+      <p class="etiquette text-indigo-600 dark:text-indigo-400">Rappel de séance</p>
+      <p id="texte-rappel" class="mt-1 text-sm text-slate-700 dark:text-slate-200"></p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400" id="nb-dues">0</p>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">cartes dues aujourd'hui</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-3xl font-bold text-slate-900 dark:text-white" id="nb-neuves">0</p>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">jamais révisées</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-3xl font-bold text-emerald-600 dark:text-emerald-400" id="nb-acquises">0</p>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">acquises (&gt; 21 jours)</p>
+      </div>
+    </div>
+
+    <div class="mt-6 flex flex-wrap items-end gap-3">
+      <div class="min-w-0 flex-1 basis-56">
+        <label for="choix-matiere" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Matière</label>
+        <select id="choix-matiere" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="">Toutes les matières</option>
+        </select>
+      </div>
+      <div class="min-w-0 flex-1 basis-56">
+        <label for="choix-fascicule" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Catégorie</label>
+        <select id="choix-fascicule" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="">Toutes les catégories</option>
+        </select>
+      </div>
+      <div class="min-w-0 flex-1 basis-56">
+        <label for="choix-fiche" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Fiche</label>
+        <select id="choix-fiche" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="">Toutes les fiches</option>
+        </select>
+      </div>
+      <div>
+        <label for="choix-taille" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Longueur</label>
+        <select id="choix-taille" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="10">10 cartes</option>
+          <option value="20">20 cartes</option>
+          <option value="30">30 cartes</option>
+          <option value="50">50 cartes</option>
+        </select>
+      </div>
+      <p class="w-full text-xs text-slate-500 dark:text-slate-400">
+        La longueur proposée reprend votre plafond de session —
+        <a id="lien-reglages" href={`${base}/progression/#reglages`} class="font-medium text-indigo-600 underline dark:text-indigo-400">modifier ce plafond</a>.
+      </p>
+      <button id="lancer" class="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700">
+        Commencer
+      </button>
+      <button id="lancer-libre" class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+        Réviser hors échéance
+      </button>
+    </div>
+
+    <p id="rien-a-faire" class="mt-6 hidden rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+      ✅ Rien à réviser aujourd'hui pour cette sélection. Vous pouvez tout de même réviser hors échéance.
+    </p>
+  </section>
+
+  <!-- Session en cours -->
+  <section id="session" class="hidden">
+    <div class="mb-4 flex items-center gap-3">
+      <button id="quitter" class="text-sm text-slate-500 hover:underline dark:text-slate-400">← Quitter</button>
+      <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+        <div id="barre-session" class="h-full rounded-full bg-indigo-500 transition-all duration-300" style="width:0%"></div>
+      </div>
+      <span id="compteur" class="text-sm font-medium text-slate-500 tabular-nums dark:text-slate-400">0/0</span>
+    </div>
+
+    <p id="source-carte" class="mb-2 text-center text-xs text-slate-400"></p>
+
+    <div class="carte-3d mx-auto max-w-2xl">
+      <div id="carte" class="min-h-[16rem] cursor-pointer rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md sm:min-h-[20rem] sm:p-10 dark:border-slate-800 dark:bg-slate-900">
+        <p class="mb-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">Question</p>
+        <p id="question" class="text-lg leading-relaxed font-medium text-slate-900 sm:text-xl dark:text-white"></p>
+
+        <div id="zone-reponse" class="mt-6 hidden border-t border-slate-200 pt-5 dark:border-slate-800">
+          <p class="mb-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">Réponse</p>
+          <p id="reponse" class="text-base leading-relaxed whitespace-pre-line text-slate-700 dark:text-slate-200"></p>
+        </div>
+
+        <p id="indice-retourner" class="mt-8 text-center text-sm text-slate-400">
+          Cliquez sur la carte ou appuyez sur <kbd class="rounded border px-1.5 py-0.5 text-xs">Espace</kbd> pour voir la réponse
+        </p>
+      </div>
+    </div>
+
+    <div id="notation" class="mx-auto mt-5 hidden max-w-2xl">
+      <p class="mb-2 text-center text-sm text-slate-500 dark:text-slate-400">Avez-vous su répondre ?</p>
+      <!--
+        Quatre notes depuis le passage à FSRS : « Oublié » n'est pas un cran de
+        plus sur le même axe que les trois autres, c'est l'échec, et il alimente
+        une grandeur distincte du modèle. Deux colonnes sur téléphone, quatre
+        au-delà : quatre boutons côte à côte à 360 px tronqueraient leurs
+        libellés.
+      -->
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button data-note="oublie" class="rounded-xl bg-red-100 px-3 py-4 font-medium text-red-700 transition hover:bg-red-200 dark:bg-red-950 dark:text-red-300 dark:hover:bg-red-900">
+          Oublié<span class="mt-1 block text-xs font-normal opacity-70" data-delai-oublie></span>
+        </button>
+        <button data-note="difficile" class="rounded-xl bg-amber-100 px-3 py-4 font-medium text-amber-700 transition hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900">
+          Difficile<span class="mt-1 block text-xs font-normal opacity-70" data-delai-difficile></span>
+        </button>
+        <button data-note="correct" class="rounded-xl bg-sky-100 px-3 py-4 font-medium text-sky-800 transition hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900">
+          Correct<span class="mt-1 block text-xs font-normal opacity-70" data-delai-correct></span>
+        </button>
+        <button data-note="facile" class="rounded-xl bg-emerald-100 px-3 py-4 font-medium text-emerald-700 transition hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900">
+          Facile<span class="mt-1 block text-xs font-normal opacity-70" data-delai-facile></span>
+        </button>
+      </div>
+      <p class="mt-2 text-center text-xs text-slate-400">Raccourcis : 1 · 2 · 3 · 4</p>
+    </div>
+  </section>
+
+  <!-- Bilan -->
+  <section id="bilan" class="hidden py-10 text-center">
+    <p class="text-5xl">🎉</p>
+    <h2 class="mt-4 text-2xl font-bold text-slate-900 dark:text-white">Session terminée</h2>
+    <p id="bilan-detail" class="mt-2 text-slate-500 dark:text-slate-400"></p>
+    <div class="mt-6 flex flex-wrap justify-center gap-3">
+      <button id="rejouer" class="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700">
+        Nouvelle session
+      </button>
+      <a id="retour-accueil" href="#" class="rounded-lg border border-slate-300 px-5 py-2.5 font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+        Tableau de bord
+      </a>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { comptesFlashcards, fileDuJour, type CarteAReviser } from '../lib/agregats';
+  import { aplatirFiches, chargerManifeste } from '../lib/contenu';
+  import {
+    lireCarte,
+    lireReglagesSession,
+    type Note,
+  } from '../lib/db';
+  import { gagnerXp, xpFlashcard } from '../lib/gamification';
+  import { apercu, carteNeuve, delai, noterEtEnregistrer, NOTES } from '../lib/srs';
+  import { signalerErreur } from '../lib/journal';
+  import { enregistrerReponse, ordonnerParZoneProximale } from '../lib/niveau';
+  import { lien, melanger, notifier, parametreUrl, pluriel } from '../lib/ui';
+
+  let file: CarteAReviser[] = [];
+  let position = 0;
+  let reponseVisible = false;
+  let notees = 0;
+  let xpSession = 0;
+  const compte: Record<Note, number> = { oublie: 0, difficile: 0, correct: 0, facile: 0 };
+
+  const $ = (id: string) => document.getElementById(id)!;
+
+  function afficherVue(nom: 'accueil-session' | 'session' | 'bilan') {
+    for (const section of ['accueil-session', 'session', 'bilan']) {
+      $(section).classList.toggle('hidden', section !== nom);
+    }
+  }
+
+  /** Aperçu du prochain intervalle, affiché sur les boutons de notation. */
+  async function majDelais(carteId: string) {
+    const base = (await lireCarte(carteId)) ?? carteNeuve(carteId, '', '');
+    const maintenant = new Date();
+    const echeances = apercu(base, maintenant);
+    for (const note of NOTES) {
+      const cible = document.querySelector(`[data-delai-${note}]`);
+      if (cible) cible.textContent = delai(echeances[note], maintenant);
+    }
+  }
+
+  async function afficherCarte() {
+    if (position >= file.length) return terminer();
+    const carte = file[position];
+
+    reponseVisible = false;
+    $('zone-reponse').classList.add('hidden');
+    $('notation').classList.add('hidden');
+    $('indice-retourner').classList.remove('hidden');
+    $('question').textContent = carte.question;
+    $('reponse').textContent = carte.reponse;
+    $('source-carte').textContent = `${carte.matiere} · ${carte.ficheTitre}${carte.neuve ? ' · nouvelle carte' : ''}`;
+    $('compteur').textContent = `${position + 1}/${file.length}`;
+    $('barre-session').style.width = `${Math.round((position / file.length) * 100)}%`;
+    await majDelais(carte.id);
+  }
+
+  function retourner() {
+    if (reponseVisible) return;
+    reponseVisible = true;
+    $('zone-reponse').classList.remove('hidden');
+    $('indice-retourner').classList.add('hidden');
+    $('notation').classList.remove('hidden');
+  }
+
+  async function annoter(note: Note) {
+    if (!reponseVisible) return;
+    const carte = file[position];
+    await noterEtEnregistrer(carte.id, carte.ficheId, carte.matiere, note);
+
+    // Estimation de niveau. « Correct » et « Facile » comptent tous deux comme
+    // une réussite : ce qui les sépare est une affaire de calendrier, pas de
+    // compétence. « Difficile » est une réussite laborieuse, d'où le demi-point.
+    void enregistrerReponse({
+      itemId: carte.id,
+      resultat: { oublie: 0, difficile: 0.5, correct: 1, facile: 1 }[note],
+      matiere: carte.matiere,
+      ficheId: carte.ficheId,
+      ficheTitre: carte.ficheTitre,
+      // Une session lancée depuis une séance est un rappel, et la personne peut
+      // vouloir l'exclure séparément de ses révisions ordinaires.
+      source: parametreUrl('fiches') ? 'rappels' : 'flashcards',
+    });
+
+    const xp = xpFlashcard(note);
+    xpSession += xp;
+    notees += 1;
+    compte[note] += 1;
+
+    const gain = await gagnerXp(xp, { cartes: 1 });
+    for (const badge of gain.nouveauxBadges) notifier(`${badge.icone} Succès : ${badge.nom}`, 'badge');
+    if (gain.monteeDeNiveau) notifier(`🎉 Niveau ${gain.niveau.niveau} !`, 'succes');
+
+    // Une carte oubliée revient en fin de session. C'est « Oublié » et non
+    // « Difficile » qui la ramène : depuis FSRS, « Difficile » est une réussite
+    // à intervalle court, pas un échec.
+    if (note === 'oublie') {
+      file.push({ ...carte, neuve: false });
+      // Et elle ouvre une entrée au journal d'erreurs, qui la servira à la
+      // prochaine séance de sa matière — en plus de son échéance FSRS, que
+      // cette file ne remplace pas.
+      void signalerErreur({
+        id: carte.id,
+        genre: 'flashcard',
+        matiere: carte.matiere,
+        ficheId: carte.ficheId,
+      });
+    }
+
+    position += 1;
+    await afficherCarte();
+  }
+
+  function terminer() {
+    $('barre-session').style.width = '100%';
+    afficherVue('bilan');
+    $('bilan-detail').textContent =
+      `${pluriel(notees, 'carte révisée', 'cartes révisées')} · +${xpSession} XP · ` +
+      `${compte.facile} facile(s), ${compte.correct} correct(s), ` +
+      `${compte.difficile} difficile(s), ${compte.oublie} oublié(s)`;
+  }
+
+  /**
+   * Trois menus en cascade — matière, fascicule, fiche — pour viser
+   * précisément la séance voulue. Chaque menu ne propose que ce que le
+   * précédent laisse ouvert, et seules les fiches porteuses de flashcards
+   * apparaissent : un choix affiché est toujours un choix jouable.
+   */
+  type FicheAplatie = ReturnType<typeof aplatirFiches>[number];
+  let fiches: FicheAplatie[] = [];
+
+  const selectMatiere = () => $('choix-matiere') as HTMLSelectElement;
+  const selectFascicule = () => $('choix-fascicule') as HTMLSelectElement;
+  const selectFiche = () => $('choix-fiche') as HTMLSelectElement;
+
+  /** Remplit un menu en conservant, si possible, la valeur déjà choisie. */
+  function remplir(select: HTMLSelectElement, libelleVide: string, valeurs: string[]) {
+    const precedent = select.value;
+    select.innerHTML = '';
+    const vide = document.createElement('option');
+    vide.value = '';
+    vide.textContent = libelleVide;
+    select.appendChild(vide);
+    for (const valeur of valeurs) {
+      const option = document.createElement('option');
+      option.value = valeur;
+      option.textContent = valeur;
+      select.appendChild(option);
+    }
+    select.value = valeurs.includes(precedent) ? precedent : '';
+  }
+
+  const uniques = (liste: string[]) => [...new Set(liste)];
+
+  function majFascicules() {
+    const matiere = selectMatiere().value;
+    remplir(
+      selectFascicule(),
+      'Toutes les catégories',
+      uniques(fiches.filter((f) => !matiere || f.matiere === matiere).map((f) => f.fascicule)),
+    );
+    majFiches();
+  }
+
+  function majFiches() {
+    const matiere = selectMatiere().value;
+    const fascicule = selectFascicule().value;
+    remplir(
+      selectFiche(),
+      'Toutes les fiches',
+      fiches
+        .filter((f) => (!matiere || f.matiere === matiere) && (!fascicule || f.fascicule === fascicule))
+        .map((f) => f.titre),
+    );
+  }
+
+  /**
+   * Traduit les trois menus en filtre pour la file du jour. Le titre suffit à
+   * désigner une fiche puisque le menu est déjà restreint à une matière et à
+   * un fascicule.
+   */
+  function selectionMenus(): { matiere: string | null; ficheIds: string[] | null } {
+    const matiere = selectMatiere().value || null;
+    const fascicule = selectFascicule().value;
+    const titre = selectFiche().value;
+    if (!fascicule && !titre) return { matiere, ficheIds: null };
+    const retenues = fiches.filter(
+      (f) =>
+        (!matiere || f.matiere === matiere) &&
+        (!fascicule || f.fascicule === fascicule) &&
+        (!titre || f.titre === titre),
+    );
+    return { matiere, ficheIds: retenues.map((f) => f.id) };
+  }
+
+  /**
+   * Le sujet sur lequel porte la session, s'il est unique — c'est la condition
+   * pour que la zone proximale veuille dire quelque chose.
+   */
+  function clefSujetDeSession(
+    matiere: string | null,
+    ficheId: string | null,
+    ficheIds: string[] | null,
+  ): string | null {
+    if (ficheId) return `fiche:${ficheId}`;
+    if (ficheIds?.length) {
+      const ensemble = new Set(ficheIds);
+      const matieres = new Set(fiches.filter((f) => ensemble.has(f.id)).map((f) => f.matiere));
+      return matieres.size === 1 ? `matiere:${[...matieres][0]}` : null;
+    }
+    return matiere ? `matiere:${matiere}` : null;
+  }
+
+  /** Fiches d'une séance passée, transmises sous la forme « ?fiches=a,b,c ». */
+  function fichesCiblees(): string[] | null {
+    const brut = parametreUrl('fiches');
+    if (!brut) return null;
+    const ids = brut.split(',').map((x) => x.trim()).filter(Boolean);
+    return ids.length ? ids : null;
+  }
+
+  async function demarrer(inclureNonDues: boolean) {
+    const taille = Number(($('choix-taille') as HTMLSelectElement).value);
+    const ficheId = parametreUrl('fiche');
+    const ciblees = fichesCiblees();
+    const menus = selectionMenus();
+    // Un rappel de séance impose ses fiches : les menus sont alors ignorés.
+    const matiere = ciblees ? null : menus.matiere;
+    const ficheIds = ciblees ?? menus.ficheIds;
+
+    // La zone proximale n'a de sens **qu'à l'intérieur d'un sujet** : comparer
+    // la difficulté d'une carte de droit public à celle d'une carte d'économie
+    // reviendrait à comparer deux échelles qui n'ont jamais été mises en regard.
+    // Sans sujet unique, on garde l'ordre de la file — les plus en retard
+    // d'abord.
+    //
+    // Le tri est confié à « fileDuJour » plutôt qu'appliqué après coup : il ne
+    // porte que sur des identifiants, et permet ainsi d'appliquer le plafond
+    // **avant** d'ouvrir la moindre fiche.
+    const clefSujet = clefSujetDeSession(matiere, ficheId, ficheIds);
+    const bouton = $('lancer') as HTMLButtonElement;
+    const libelle = bouton.textContent;
+    bouton.disabled = true;
+    bouton.textContent = 'Préparation…';
+    try {
+      file = melanger(
+        await fileDuJour({
+          matiere,
+          ficheId,
+          ficheIds,
+          limite: taille,
+          inclureNonDues,
+          prioriser: clefSujet
+            ? (cartes) => ordonnerParZoneProximale(cartes, clefSujet)
+            : undefined,
+        }),
+      );
+    } finally {
+      bouton.disabled = false;
+      bouton.textContent = libelle;
+    }
+    if (!file.length) {
+      $('rien-a-faire').classList.remove('hidden');
+      return;
+    }
+    position = 0;
+    notees = 0;
+    xpSession = 0;
+    for (const note of NOTES) compte[note] = 0;
+    afficherVue('session');
+    await afficherCarte();
+  }
+
+  /** Recalcule les compteurs de l'écran d'accueil de session. */
+  /**
+   * Les trois compteurs de l'écran d'accueil.
+   *
+   * Ils se calculent sans ouvrir une seule fiche : l'état des cartes déjà vues
+   * est en base, et le manifeste dit combien chaque fiche en compte. Les
+   * construire à partir de la file entière revenait à déchiffrer tout le site à
+   * chaque changement de menu.
+   */
+  async function rafraichirCompteurs() {
+    const ficheId = parametreUrl('fiche');
+    const ciblees = fichesCiblees();
+    const menus = selectionMenus();
+    const comptes = await comptesFlashcards({
+      matiere: ciblees ? null : menus.matiere,
+      ficheId,
+      ficheIds: ciblees ?? menus.ficheIds,
+    });
+    $('nb-dues').textContent = String(comptes.dues);
+    $('nb-neuves').textContent = String(comptes.neuves);
+    $('nb-acquises').textContent = String(comptes.acquises);
+    $('rien-a-faire').classList.toggle('hidden', comptes.dues > 0);
+  }
+
+  async function initialiser() {
+    const manifeste = await chargerManifeste();
+    fiches = aplatirFiches(manifeste).filter((f) => f.nbFlashcards > 0);
+    remplir(selectMatiere(), 'Toutes les matières', uniques(fiches.map((f) => f.matiere)));
+    majFascicules();
+
+    // Le plafond enregistré devient la longueur proposée par défaut ; s'il ne
+    // correspond à aucune option, on l'ajoute pour qu'il reste visible.
+    const { plafondCartes } = await lireReglagesSession();
+    const taille = $('choix-taille') as HTMLSelectElement;
+    if (![...taille.options].some((o) => Number(o.value) === plafondCartes)) {
+      const option = document.createElement('option');
+      option.value = String(plafondCartes);
+      option.textContent = `${plafondCartes} cartes`;
+      taille.appendChild(option);
+    }
+    taille.value = String(plafondCartes);
+
+    // Rappel ciblé sur les fiches d'une séance passée.
+    const ciblees = fichesCiblees();
+    if (ciblees) {
+      const titres = aplatirFiches(manifeste)
+        .filter((f) => ciblees.includes(f.id))
+        .map((f) => f.titre);
+      $('texte-rappel').textContent = titres.length
+        ? `Session limitée aux fiches travaillées lors d'une séance précédente : ${titres.join(' · ')}.`
+        : 'Session limitée aux fiches d\'une séance précédente.';
+      $('bandeau-rappel').classList.remove('hidden');
+      // Les filtres n'ont plus de sens quand les fiches sont imposées.
+      for (const menu of [selectMatiere(), selectFascicule(), selectFiche()]) {
+        menu.value = '';
+        menu.disabled = true;
+      }
+    }
+
+    await rafraichirCompteurs();
+
+    selectMatiere().addEventListener('change', () => {
+      majFascicules();
+      void rafraichirCompteurs();
+    });
+    selectFascicule().addEventListener('change', () => {
+      majFiches();
+      void rafraichirCompteurs();
+    });
+    selectFiche().addEventListener('change', () => void rafraichirCompteurs());
+
+    $('lancer').addEventListener('click', () => void demarrer(false));
+    $('lancer-libre').addEventListener('click', () => void demarrer(true));
+    $('rejouer').addEventListener('click', () => {
+      afficherVue('accueil-session');
+      void rafraichirCompteurs();
+    });
+    $('quitter').addEventListener('click', () => {
+      afficherVue('accueil-session');
+      void rafraichirCompteurs();
+    });
+    $('retour-accueil').setAttribute('href', lien('/'));
+    $('carte').addEventListener('click', retourner);
+
+    for (const bouton of document.querySelectorAll<HTMLButtonElement>('#notation [data-note]')) {
+      bouton.addEventListener('click', () => void annoter(bouton.dataset.note as Note));
+    }
+
+    // Raccourcis clavier : Espace pour retourner, 1 à 4 pour noter.
+    document.addEventListener('keydown', (e) => {
+      if ($('session').classList.contains('hidden')) return;
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        retourner();
+      } else if (reponseVisible && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        void annoter(NOTES[Number(e.key) - 1]);
+      }
+    });
+
+    $('chargement').classList.add('hidden');
+    afficherVue('accueil-session');
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(initialiser);
+</script>

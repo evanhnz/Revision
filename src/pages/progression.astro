@@ -1,0 +1,355 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Sauvegarde" actif="progression">
+  <h1 class="mb-1 text-2xl font-bold text-slate-900 dark:text-white">Sauvegarde et synchronisation</h1>
+  <p class="mb-6 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+    Votre progression (XP, série, badges, répétition espacée, résultats de quiz) est stockée
+    uniquement dans ce navigateur. Pour passer d'un appareil à l'autre, exportez un fichier
+    JSON ici, puis importez-le sur l'autre appareil.
+  </p>
+
+  <section id="reglages" class="mb-8 rounded-2xl border border-slate-200 bg-white p-5 target:ring-2 target:ring-indigo-400 dark:border-slate-800 dark:bg-slate-900">
+    <p class="etiquette text-indigo-600 dark:text-indigo-400">Rythme de travail</p>
+    <h2 class="mt-1 mb-2 text-lg font-semibold text-slate-900 dark:text-white">Taille des sessions</h2>
+    <p class="mb-4 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+      Le site contient beaucoup plus de cartes et de questions qu'il n'est raisonnable d'en
+      traiter d'un coup. Ces plafonds limitent chaque session — les éléments les plus en retard
+      passent en premier, le reste revient à la session suivante.
+    </p>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block">
+        <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Cartes par session de flashcards</span>
+        <input id="plafond-cartes" type="number" min="5" max="200" step="5"
+          class="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-indigo-900" />
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Questions par QCM</span>
+        <input id="plafond-questions" type="number" min="5" max="200" step="5"
+          class="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-indigo-900" />
+      </label>
+    </div>
+    <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+      Entre 5 et 200. Valeurs conseillées : 20 à 30. Ces plafonds servent de valeur par défaut au
+      démarrage d'une session ; ils restent modifiables au cas par cas depuis les pages Flashcards et Quiz.
+    </p>
+    <p id="message-reglages" class="mt-3 hidden text-sm text-emerald-600 dark:text-emerald-400"></p>
+  </section>
+
+  <section id="sources-niveau" class="mb-8 rounded-2xl border border-slate-200 bg-white p-5 target:ring-2 target:ring-indigo-400 dark:border-slate-800 dark:bg-slate-900">
+    <p class="etiquette text-indigo-600 dark:text-indigo-400">Estimation de niveau</p>
+    <h2 class="mt-1 mb-2 text-lg font-semibold text-slate-900 dark:text-white">Ce qui alimente votre niveau</h2>
+    <p class="mb-4 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+      Le niveau estimé par matière — et la sélection de contenu qui en découle — se nourrit des
+      réponses notées. Vous choisissez lesquelles comptent. Désactiver une source arrête de
+      l'utiliser pour les mises à jour futures ; les données déjà enregistrées sont conservées.
+    </p>
+    <div id="sources" class="space-y-2"></div>
+
+    <h3 class="mt-6 mb-2 text-sm font-semibold text-slate-900 dark:text-white">Contenus écartés</h3>
+    <p class="mb-3 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+      Certains contenus ne mesurent pas une connaissance de matière : les cocher les réintègre.
+    </p>
+    <div id="contenus" class="space-y-2"></div>
+    <p id="message-sources" class="mt-3 hidden text-sm text-emerald-600 dark:text-emerald-400"></p>
+  </section>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <h2 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Exporter</h2>
+      <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        Télécharge un fichier <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">.json</code>
+        contenant toute votre progression.
+      </p>
+      <dl id="resume" class="mb-4 grid grid-cols-2 gap-3 text-sm"></dl>
+      <button id="exporter" class="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700">
+        ⬇ Exporter ma progression
+      </button>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <h2 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Importer</h2>
+      <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        Sélectionnez un fichier exporté depuis un autre appareil.
+      </p>
+
+      <fieldset class="mb-4 space-y-2 text-sm">
+        <legend class="sr-only">Mode d'import</legend>
+        <label class="flex items-start gap-2">
+          <input type="radio" name="mode" value="fusion" checked class="mt-1" />
+          <span>
+            <strong>Fusionner</strong> — conserve, pour chaque élément, l'état le plus récent.
+            <span class="block text-xs text-slate-400">Recommandé pour synchroniser deux appareils.</span>
+          </span>
+        </label>
+        <label class="flex items-start gap-2">
+          <input type="radio" name="mode" value="remplacement" class="mt-1" />
+          <span>
+            <strong>Remplacer</strong> — efface la progression locale puis restaure la sauvegarde.
+            <span class="block text-xs text-slate-400">À utiliser pour restaurer après une réinstallation.</span>
+          </span>
+        </label>
+      </fieldset>
+
+      <input id="fichier" type="file" accept="application/json,.json"
+        class="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white dark:file:bg-white dark:file:text-slate-900" />
+      <p id="message-import" class="mt-3 hidden text-sm"></p>
+    </section>
+  </div>
+
+  <section class="mt-8 rounded-2xl border border-red-200 bg-red-50/60 p-5 dark:border-red-900 dark:bg-red-950/30">
+    <h2 class="mb-1 text-lg font-semibold text-red-900 dark:text-red-200">Réinitialiser</h2>
+    <p class="mb-4 text-sm text-red-800/80 dark:text-red-300/80">
+      Efface définitivement toute la progression de ce navigateur. Les fiches, elles, ne sont pas touchées.
+    </p>
+    <button id="reinitialiser" class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-transparent dark:text-red-300">
+      Effacer ma progression
+    </button>
+  </section>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import {
+    exporterTout,
+    importerTout,
+    ecrireReglagesSession,
+    lireProfil,
+    lireReglagesSession,
+    tousLesJours,
+    tousLesResultatsQuiz,
+    toutesLesCartes,
+    toutEffacer,
+  } from '../lib/db';
+  import { calculerNiveau } from '../lib/gamification';
+  import { formaterDuree, notifier, pluriel } from '../lib/ui';
+  import {
+    ecrireReglagesContenu,
+    ecrireReglagesNiveau,
+    lireReglagesContenu,
+    lireReglagesNiveau,
+    type ReglagesContenu,
+    type ReglagesNiveau,
+  } from '../lib/niveau';
+
+  const $ = (id: string) => document.getElementById(id)!;
+
+  /**
+   * Les quatre sources, et leur libellé. Le QCM-DGFiP est décoché par défaut :
+   * ses rubriques — Français, Culture générale, Logique, Maths — ne recouvrent
+   * pas les matières du concours, et les y mêler fausserait des niveaux qu'elles
+   * ne mesurent pas.
+   */
+  const SOURCES: { id: keyof ReglagesNiveau; libelle: string; detail: string }[] = [
+    { id: 'quiz', libelle: 'Quiz de cours', detail: 'Les QCM engendrés à partir de vos fiches.' },
+    { id: 'flashcards', libelle: 'Flashcards', detail: 'Chaque carte notée, quelle que soit la note.' },
+    {
+      id: 'rappels',
+      libelle: 'Rappels de séance',
+      detail: 'Les flashcards et QCM lancés depuis une séance de planification.',
+    },
+  ];
+
+  /**
+   * Les contenus écartés par défaut de l'estimation, et de la révision.
+   *
+   * Voir « ReglagesContenu » dans « lib/niveau.ts » pour le raisonnement : dans
+   * les deux cas, réussir ne dit rien de ce qu'on sait d'une matière.
+   */
+  const CONTENUS: { id: keyof ReglagesContenu; libelle: string; detail: string }[] = [
+    {
+      id: 'casPratique',
+      libelle: 'Résolution de cas pratique',
+      detail:
+        "L'épreuve s'évalue sur une note rédigée, pas sur des questions fermées : décoché par défaut.",
+    },
+    {
+      id: 'methodologie',
+      libelle: 'Fiches de méthodologie — estimation',
+      detail:
+        'Méthodes, devoirs et corrigés décrivent le déroulé d\'une épreuve : décoché par défaut.',
+    },
+    {
+      id: 'reviserMethodologie',
+      libelle: 'Fiches de méthodologie — révisions',
+      detail:
+        "Leurs cartes n'entrent pas dans les files de révision, sauf à ouvrir la fiche et à la réviser directement.",
+    },
+  ];
+
+  async function peindreContenus() {
+    const reglages = await lireReglagesContenu();
+    const zone = $('contenus');
+    zone.replaceChildren();
+    for (const contenu of CONTENUS) {
+      const etiquette = document.createElement('label');
+      etiquette.className = 'flex min-h-11 cursor-pointer items-start gap-3';
+      const case_ = document.createElement('input');
+      case_.type = 'checkbox';
+      case_.checked = reglages[contenu.id];
+      case_.className = 'mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500';
+      case_.addEventListener('change', () => {
+        void (async () => {
+          const courants = await lireReglagesContenu();
+          await ecrireReglagesContenu({ ...courants, [contenu.id]: case_.checked });
+          const message = $('message-sources');
+          message.textContent = `« ${contenu.libelle} » ${case_.checked ? 'est réintégré' : 'est écarté'}.`;
+          message.classList.remove('hidden');
+        })();
+      });
+      const texte = document.createElement('span');
+      const nom = document.createElement('span');
+      nom.className = 'block text-sm font-medium text-slate-700 dark:text-slate-200';
+      nom.textContent = contenu.libelle;
+      const detail = document.createElement('span');
+      detail.className = 'block text-xs text-slate-500 dark:text-slate-400';
+      detail.textContent = contenu.detail;
+      texte.append(nom, detail);
+      etiquette.append(case_, texte);
+      zone.appendChild(etiquette);
+    }
+  }
+
+  async function peindreSources() {
+    const reglages = await lireReglagesNiveau();
+    const zone = $('sources');
+    zone.replaceChildren();
+    for (const source of SOURCES) {
+      const etiquette = document.createElement('label');
+      etiquette.className = 'flex min-h-11 cursor-pointer items-start gap-3';
+      const case_ = document.createElement('input');
+      case_.type = 'checkbox';
+      case_.checked = reglages[source.id];
+      case_.className = 'mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500';
+      case_.addEventListener('change', () => {
+        void (async () => {
+          const courants = await lireReglagesNiveau();
+          await ecrireReglagesNiveau({ ...courants, [source.id]: case_.checked });
+          const message = $('message-sources');
+          message.textContent = `« ${source.libelle} » ${case_.checked ? 'compte désormais' : 'ne compte plus'} dans l'estimation.`;
+          message.classList.remove('hidden');
+        })();
+      });
+      const texte = document.createElement('span');
+      const nom = document.createElement('span');
+      nom.className = 'block text-sm font-medium text-slate-700 dark:text-slate-200';
+      nom.textContent = source.libelle;
+      const detail = document.createElement('span');
+      detail.className = 'block text-xs text-slate-500 dark:text-slate-400';
+      detail.textContent = source.detail;
+      texte.append(nom, detail);
+      etiquette.append(case_, texte);
+      zone.appendChild(etiquette);
+    }
+  }
+
+  async function afficherResume() {
+    const [profil, cartes, quiz, jours] = await Promise.all([
+      lireProfil(),
+      toutesLesCartes(),
+      tousLesResultatsQuiz(),
+      tousLesJours(),
+    ]);
+    const lignes: [string, string][] = [
+      ['XP', `${profil.xp} (niveau ${calculerNiveau(profil.xp).niveau})`],
+      ['Série record', pluriel(profil.streakRecord, 'jour')],
+      ['Cartes suivies', String(cartes.length)],
+      ['Quiz passés', String(quiz.length)],
+      ['Badges', String(profil.badges.length)],
+      ['Temps cumulé', formaterDuree(jours.reduce((n, j) => n + j.secondes, 0))],
+    ];
+    const zone = $('resume');
+    zone.innerHTML = '';
+    for (const [libelle, valeur] of lignes) {
+      const dt = document.createElement('dt');
+      dt.className = 'text-slate-500 dark:text-slate-400';
+      dt.textContent = libelle;
+      const dd = document.createElement('dd');
+      dd.className = 'text-right font-medium text-slate-900 dark:text-white';
+      dd.textContent = valeur;
+      zone.append(dt, dd);
+    }
+  }
+
+  async function brancherReglages() {
+    await peindreSources();
+    await peindreContenus();
+
+    const reglages = await lireReglagesSession();
+    const cartes = $('plafond-cartes') as HTMLInputElement;
+    const questions = $('plafond-questions') as HTMLInputElement;
+    cartes.value = String(reglages.plafondCartes);
+    questions.value = String(reglages.plafondQuestions);
+
+    const enregistrer = async () => {
+      // db.ts borne les valeurs entre 5 et 200 ; on relit ce qui a réellement
+      // été retenu pour que les champs ne mentent pas sur l'état enregistré.
+      await ecrireReglagesSession({
+        plafondCartes: Number(cartes.value),
+        plafondQuestions: Number(questions.value),
+      });
+      const retenu = await lireReglagesSession();
+      cartes.value = String(retenu.plafondCartes);
+      questions.value = String(retenu.plafondQuestions);
+      const zone = $('message-reglages');
+      zone.textContent = `Enregistré : ${retenu.plafondCartes} cartes, ${retenu.plafondQuestions} questions par session.`;
+      zone.classList.remove('hidden');
+    };
+    cartes.addEventListener('change', () => void enregistrer());
+    questions.addEventListener('change', () => void enregistrer());
+  }
+
+  function message(texte: string, succes: boolean) {
+    const element = $('message-import');
+    element.textContent = texte;
+    element.className = `mt-3 text-sm ${succes ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`;
+    element.classList.remove('hidden');
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(async () => {
+    await afficherResume();
+    await brancherReglages();
+
+    $('exporter').addEventListener('click', async () => {
+      const donnees = await exporterTout();
+      const blob = new Blob([JSON.stringify(donnees, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const lien = document.createElement('a');
+      lien.href = url;
+      lien.download = `progression-${new Date().toISOString().slice(0, 10)}.json`;
+      lien.click();
+      URL.revokeObjectURL(url);
+      notifier('Sauvegarde téléchargée', 'succes');
+    });
+
+    $('fichier').addEventListener('change', async (e) => {
+      const fichier = (e.target as HTMLInputElement).files?.[0];
+      if (!fichier) return;
+      const mode = (document.querySelector('input[name="mode"]:checked') as HTMLInputElement).value as
+        | 'fusion'
+        | 'remplacement';
+      try {
+        const donnees = JSON.parse(await fichier.text());
+        await importerTout(donnees, mode);
+        await afficherResume();
+        message(`Import réussi (${mode}). Votre progression est à jour.`, true);
+        notifier('Progression importée', 'succes');
+      } catch (erreur) {
+        message(`Import impossible : ${(erreur as Error).message}`, false);
+      } finally {
+        (e.target as HTMLInputElement).value = '';
+      }
+    });
+
+    $('reinitialiser').addEventListener('click', async () => {
+      if (!confirm('Effacer définitivement toute la progression de ce navigateur ?')) return;
+      if (!confirm('Dernière confirmation : cette action est irréversible.')) return;
+      await toutEffacer();
+      await afficherResume();
+      notifier('Progression effacée', 'info');
+    });
+  });
+</script>

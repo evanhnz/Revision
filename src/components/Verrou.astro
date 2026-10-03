@@ -1,0 +1,141 @@
+---
+/**
+ * Écran de connexion.
+ * Il masque l'interface tant que le mot de passe n'a pas été validé — mais la
+ * protection réelle vient du chiffrement : sans ce mot de passe, les fichiers
+ * publiés sur GitHub Pages restent illisibles.
+ */
+---
+
+<div
+  id="ecran-verrou"
+  class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900 px-4"
+>
+  <div class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl dark:bg-slate-800">
+    <div class="mb-6 text-center">
+      <div
+        class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl dark:bg-indigo-950"
+      >
+        🔐
+      </div>
+      <h1 class="text-xl font-semibold text-slate-900 dark:text-white">Espace privé</h1>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Saisissez le mot de passe pour déchiffrer le contenu.
+      </p>
+    </div>
+
+    <form id="formulaire-verrou" class="space-y-4" autocomplete="on">
+      <div>
+        <label for="champ-mdp" class="sr-only">Mot de passe</label>
+        <input
+          id="champ-mdp"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          class="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-indigo-900"
+          placeholder="Mot de passe"
+        />
+      </div>
+
+      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+        <input
+          id="champ-memoriser"
+          type="checkbox"
+          checked
+          class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+        />
+        Rester connecté sur cet appareil
+      </label>
+
+      <p id="erreur-verrou" class="hidden text-sm text-red-600 dark:text-red-400" role="alert"></p>
+
+      <button
+        type="submit"
+        id="bouton-verrou"
+        class="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white transition hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-300 focus:outline-none disabled:opacity-60"
+      >
+        Déverrouiller
+      </button>
+    </form>
+
+    <p class="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
+      Le déchiffrement s'effectue dans le navigateur. Rien n'est envoyé sur un serveur.
+    </p>
+  </div>
+</div>
+
+<script>
+  import { deverrouiller, estDeverrouille, signalerDeverrouillage, signalerVerrouillage } from '../lib/auth';
+  import { demarrerChargement, echecChargement, terminerChargement } from '../lib/chargement';
+
+  const ecran = document.getElementById('ecran-verrou')!;
+  const application = document.getElementById('application')!;
+  const formulaire = document.getElementById('formulaire-verrou') as HTMLFormElement;
+  const champ = document.getElementById('champ-mdp') as HTMLInputElement;
+  const memoriser = document.getElementById('champ-memoriser') as HTMLInputElement;
+  const erreur = document.getElementById('erreur-verrou')!;
+  const bouton = document.getElementById('bouton-verrou') as HTMLButtonElement;
+
+  function afficherVerrou() {
+    // Rien de plus à charger tant que le mot de passe n'est pas saisi : la
+    // barre se referme au lieu de tourner dans le vide.
+    terminerChargement();
+    signalerVerrouillage();
+    ecran.classList.remove('hidden');
+    ecran.classList.add('flex');
+    application.classList.add('hidden');
+    champ.focus();
+  }
+
+  function afficherApplication() {
+    ecran.classList.add('hidden');
+    ecran.classList.remove('flex');
+    application.classList.remove('hidden');
+    // Signale aux pages qu'elles peuvent charger leur contenu déchiffré.
+    // L'état est mémorisé sur <html> : une page dont le script arrive après
+    // ce moment le lira quand même (voir lib/auth.ts).
+    signalerDeverrouillage();
+  }
+
+  formulaire.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    erreur.classList.add('hidden');
+    bouton.disabled = true;
+    bouton.textContent = 'Déchiffrement…';
+    // La dérivation PBKDF2 est longue : la barre de progression démarre ici,
+    // et non à l'affichage de la page, pour couvrir aussi cette attente.
+    demarrerChargement();
+
+    // La dérivation PBKDF2 est volontairement lente : on laisse le navigateur
+    // peindre l'état « en cours » avant de la lancer.
+    await new Promise((r) => setTimeout(r, 20));
+
+    const message = await deverrouiller(champ.value, memoriser.checked);
+    bouton.disabled = false;
+    bouton.textContent = 'Déverrouiller';
+
+    if (message) {
+      echecChargement();
+      erreur.textContent = message;
+      erreur.classList.remove('hidden');
+      champ.select();
+      return;
+    }
+    champ.value = '';
+    afficherApplication();
+  });
+
+  // Au chargement : session déjà déverrouillée ?
+  demarrerChargement();
+  estDeverrouille()
+    .then((ouvert) => (ouvert ? afficherApplication() : afficherVerrou()))
+    .catch((e) => {
+      // Une clé illisible ne doit pas laisser l'écran figé : on redemande
+      // simplement le mot de passe.
+      console.error('Vérification de la session impossible :', e);
+      afficherVerrou();
+    });
+
+  document.addEventListener('revinsp:verrouille', afficherVerrou);
+</script>

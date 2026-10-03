@@ -1,0 +1,45 @@
+---
+import Base from '../../layouts/Base.astro';
+import QuadNBack from '../../features/quad-n-back/composants/QuadNBack.svelte';
+---
+
+<Base titre="Quad N-Back" actif="cog-training">
+  <header class="mb-5">
+    <a
+      id="retour"
+      href="../"
+      class="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+      >← Cog-Training</a
+    >
+    <h1 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">Quad N-Back</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+      Quad N-Back : quatre flux de stimuli défilent en parallèle — position, couleur, forme et son.
+      Signalez à chaque épreuve les dimensions identiques à celles vues <strong>n</strong> épreuves plus tôt.
+      L'exercice entraîne la mémoire de travail, utile pour tenir une note de synthèse ou un oral.
+    </p>
+  </header>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Chargement de l'exercice…</div>
+
+  <div id="exercice" class="hidden">
+    <!--
+      client:only : le composant, ses sons et son moteur ne sont chargés que
+      sur cette page, jamais au chargement des autres pages du site.
+    -->
+    <QuadNBack client:only="svelte" />
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { lien } from '../../lib/ui';
+
+  document.getElementById('retour')!.setAttribute('href', lien('/cog-training/'));
+
+  // L'exercice ne contient aucune donnée du concours et n'est donc pas
+  // chiffré, mais il reste derrière l'écran de connexion comme le reste du site.
+  auDeverrouillage(() => {
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('exercice')!.classList.remove('hidden');
+  });
+</script>

@@ -1,0 +1,113 @@
+---
+/**
+ * Accueil de la rubrique Cog-Training : trois exercices distincts.
+ *
+ * Les exercices ne contiennent aucune donnée du concours et ne sont donc pas
+ * chiffrés, mais ils restent derrière l'écran de connexion comme le reste.
+ */
+import Base from '../../layouts/Base.astro';
+
+const exercices = [
+  {
+    id: 'quad-n-back',
+    icone: '🧩',
+    titre: 'Quad N-Back',
+    accroche: 'Mémoire de travail',
+    description:
+      'Quatre flux de stimuli défilent en parallèle — position, couleur, forme et son. ' +
+      'Signalez à chaque épreuve les dimensions identiques à celles vues n épreuves plus tôt.',
+    utilite: 'Tenir une note de synthèse, garder le fil d\'un oral.',
+    href: 'quad-n-back/',
+  },
+  {
+    id: 'relational-reasoning',
+    icone: '🧠',
+    titre: 'Relational Reasoning',
+    accroche: 'Raisonnement relationnel',
+    description:
+      'Un réseau de relations vous est montré sans que la règle qui le régit ' +
+      'soit nommée : à vous de l\'inférer, puis de l\'appliquer. Neuf systèmes, ' +
+      'de l\'ordre sur une ligne aux relations topologiques et temporelles.',
+    utilite: 'Repérer un sophisme, construire un plan qui tient — sans garantie de transfert.',
+    href: 'relational-reasoning/',
+  },
+  {
+    id: 'veridical-mapping',
+    icone: '🎚️',
+    titre: 'Veridical Mapping',
+    accroche: 'Correspondance perceptive',
+    description:
+      'Deux dimensions perceptives en vis-à-vis — une taille et une intensité sonore, ' +
+      'une position et une teinte. Il s\'agit d\'en établir la correspondance, de plus en ' +
+      'plus finement, jusqu\'au plus petit écart que vous distinguez encore.',
+    utilite: 'Lire une échelle d\'un coup d\'œil — sans garantie de transfert.',
+    href: 'veridical-mapping/',
+  },
+];
+---
+
+<Base titre="Cog-Training" actif="cog-training">
+  <header class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Cog-Training</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+      Trois exercices d'entraînement, indépendants de vos matières : tenir plusieurs
+      informations en mémoire, inférer une règle relationnelle qu'aucun énoncé ne nomme, et mettre
+      deux échelles perceptives en correspondance. Ils ne mesurent rien de clinique et ne
+      diagnostiquent personne, et rien ne garantit que s'y entraîner améliore quoi que ce soit
+      au-delà de la tâche elle-même.
+    </p>
+  </header>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Chargement…</div>
+
+  <div id="exercices" class="hidden grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {
+      exercices.map((exercice) => (
+        <a
+          href={exercice.href}
+          data-exercice={exercice.id}
+          class="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-300 hover:shadow dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700"
+        >
+          {/* Étiquette de catégorie au-dessus du titre, puis le titre : c'est
+              la convention de carte de service-public.gouv.fr. */}
+          <div class="flex items-start gap-3">
+            <span class="text-3xl leading-none" aria-hidden="true">
+              {exercice.icone}
+            </span>
+            <div class="min-w-0">
+              <p class="etiquette text-indigo-700 dark:text-indigo-300">{exercice.accroche}</p>
+              <h2 class="mt-1 font-semibold text-slate-900 dark:text-white">{exercice.titre}</h2>
+            </div>
+          </div>
+
+          <p class="mt-3 flex-1 text-sm text-slate-600 dark:text-slate-300">
+            {exercice.description}
+          </p>
+
+          <p class="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <span class="font-medium">Utile pour</span> — {exercice.utilite}
+          </p>
+
+          <span class="mt-3 text-sm font-medium text-indigo-600 group-hover:underline dark:text-indigo-400">
+            Commencer →
+          </span>
+        </a>
+      ))
+    }
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { lien } from '../../lib/ui';
+
+  // Les liens sont réécrits avec le chemin de base du site, comme ailleurs.
+  for (const carte of document.querySelectorAll<HTMLAnchorElement>('[data-exercice]')) {
+    carte.href = lien(`/cog-training/${carte.dataset.exercice}/`);
+  }
+
+  auDeverrouillage(() => {
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('exercices')!.classList.remove('hidden');
+  });
+</script>

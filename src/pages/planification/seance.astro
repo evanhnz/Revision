@@ -1,0 +1,541 @@
+---
+/**
+ * Déroulé d'une séance de révision.
+ *
+ * L'ordre suit la méthode, et il compte : on restitue AVANT de relire.
+ *
+ *   1. restitution à blanc des séances précédentes de cette matière — la plus
+ *      ancienne d'abord, méthode de la feuille blanche puis comparaison avec
+ *      ses notes de l'époque (Feynman) ;
+ *   2. contenu du jour — les fiches du site rattachées à la matière ;
+ *   3. note de séance, d'une à deux pages : c'est elle qui sera restituée lors
+ *      des séances n-1 et n-2 à venir ;
+ *   4. minuteur, indicatif, jamais bloquant.
+ */
+import Base from '../../layouts/Base.astro';
+---
+
+<Base titre="Séance" actif="planification">
+  <div id="chargement" class="py-20 text-center text-slate-400">Préparation de la séance…</div>
+
+  <div id="seance" class="hidden">
+    <header class="mb-6">
+      <a
+        id="retour"
+        href="../"
+        class="inline-flex min-h-11 items-center text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+        >← Planification</a
+      >
+      <div class="mt-1 flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p id="etiquette" class="etiquette text-indigo-600 dark:text-indigo-400"></p>
+          <h1 id="titre" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white"></h1>
+          <p id="sous-titre" class="mt-1 text-sm text-slate-500 dark:text-slate-400"></p>
+        </div>
+
+        <!-- Minuteur : 30 min à 1 h d'après la méthode, sans coupure. -->
+        <div
+          class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-center dark:border-slate-800 dark:bg-slate-900"
+        >
+          <p class="etiquette text-slate-500 dark:text-slate-400">Minuteur</p>
+          <p id="minuteur" class="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums dark:text-white">
+            00:00
+          </p>
+          <div class="mt-2 flex gap-1">
+            <button
+              id="bouton-minuteur"
+              type="button"
+              class="min-h-11 flex-1 rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white transition hover:bg-indigo-700"
+            >
+              Démarrer
+            </button>
+          </div>
+          <p id="jalon-minuteur" class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Repère : 30 min à 1 h
+          </p>
+        </div>
+      </div>
+
+      <!--
+        Jour de repos : la séance reste accessible — on peut toujours vouloir
+        travailler un jour prévu libre —, mais rien n'y est programmé, et la
+        page le dit plutôt que de laisser croire à une séance vide par erreur.
+      -->
+      <p
+        id="bandeau-repos"
+        class="mt-4 hidden rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200"
+      >
+        Aucune révision n'est programmée aujourd'hui : ce jour est réglé sur
+        « Repos ». Votre série de jours n'en sera pas rompue. Pour travailler
+        malgré tout, réassignez ce jour à une matière depuis la planification.
+      </p>
+    </header>
+
+    <!-- ── 1. Rappels ────────────────────────────────────────────────── -->
+    <section id="bloc-rappels" class="mb-8">
+      <h2 class="mb-1 text-lg font-bold text-slate-900 dark:text-white">1. Restitution à blanc</h2>
+      <p class="mb-4 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+        Sans regarder vos notes, expliquez ce que vous aviez retenu, comme si vous l'enseigniez à
+        quelqu'un qui ne connaît pas le sujet. Vous comparerez ensuite avec la note de séance de
+        l'époque : ce que vous n'aurez pas su redire est précisément ce qu'il reste à travailler.
+      </p>
+      <div id="rappels" class="space-y-4"></div>
+    </section>
+
+    <!-- ── 2. Reprise des erreurs ─────────────────────────────────────── -->
+    <section id="bloc-journal" class="mb-8 hidden">
+      <h2 class="mb-1 text-lg font-bold text-slate-900 dark:text-white">2. Reprise des erreurs</h2>
+      <p class="mb-4 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+        Ce que vous avez manqué dans cette matière vous est servi ici, sans avoir à aller le
+        chercher — d'abord ce qui date de la séance précédente. Une entrée ne sort du journal
+        qu'après deux reprises réussies lors de séances différentes.
+      </p>
+      <p id="resume-journal" class="mb-3 text-sm font-medium text-slate-700 dark:text-slate-200"></p>
+      <div id="journal-seance"></div>
+    </section>
+
+    <!-- ── 3. Contenu du jour ────────────────────────────────────────── -->
+    <section class="mb-8">
+      <h2 id="titre-contenu" class="mb-1 text-lg font-bold text-slate-900 dark:text-white">
+        3. Contenu du jour
+      </h2>
+      <p class="mb-4 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+        Les fiches de cette matière, les non lues d'abord. Les deux premières sont la proposition
+        du jour — de quoi ficher une à deux pages, comme le veut la méthode.
+      </p>
+      <!--
+        Prétest de la fiche proposée, avant la liste : s'essayer aux questions
+        d'une fiche qu'on n'a pas encore lue rend la lecture qui suit plus
+        efficace. Rempli par src/lib/pretest.ts, et masqué si la fiche du jour
+        n'a pas de prétest ou l'a déjà reçu.
+      -->
+      <div id="pretest-seance" class="mb-5 hidden"></div>
+      <div id="fiches" class="grid gap-3 sm:grid-cols-2"></div>
+    </section>
+
+    <!-- ── 4. Note de séance ─────────────────────────────────────────── -->
+    <section class="mb-8">
+      <h2 id="titre-note" class="mb-1 text-lg font-bold text-slate-900 dark:text-white">
+        4. Note de séance
+      </h2>
+      <p class="mb-3 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+        Une à deux pages, avec vos mots. Ce sont vos notes personnelles, distinctes des fiches de la
+        bibliothèque : c'est ce texte qui vous sera présenté à restituer lors des prochaines séances
+        de cette matière.
+      </p>
+      <textarea
+        id="note"
+        rows="16"
+        placeholder="Ce que je retiens de la séance du jour…"
+        class="w-full rounded-xl border border-slate-300 bg-white p-4 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-900"
+      ></textarea>
+      <p id="compteur-note" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
+    </section>
+
+    <!-- ── 4. Clôture ────────────────────────────────────────────────── -->
+    <section
+      class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="font-semibold text-slate-900 dark:text-white">Terminer la séance</p>
+          <p id="etat-sauvegarde" class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Vos saisies sont enregistrées automatiquement.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            id="enregistrer"
+            type="button"
+            class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Enregistrer et reprendre plus tard
+          </button>
+          <button
+            id="terminer"
+            type="button"
+            class="min-h-11 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition hover:bg-indigo-700"
+          >
+            Séance terminée
+          </button>
+        </div>
+      </div>
+      <p id="bilan" class="mt-3 hidden text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status"></p>
+    </section>
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { jourISO, tousLesEtatsFiches, type Seance } from '../../lib/db';
+  import { chargerFiche, chargerManifeste } from '../../lib/contenu';
+  import { aProposer, montrer as montrerPretest } from '../../lib/pretest';
+  import { pourLaSeance } from '../../lib/journal';
+  import { chargerItems, montrer as montrerJournal } from '../../lib/journal-revision';
+  import { formaterDuree, lien, parametreUrl } from '../../lib/ui';
+  import {
+    estRepos,
+    fichesDuTheme,
+    rappels,
+    sauvegarder,
+    seanceDuJour,
+    terminer,
+    theme as themeParId,
+    xpSeance,
+  } from '../../lib/planification';
+
+  const $ = (id: string) => document.getElementById(id)!;
+  const dateCourte = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const enDate = (jour: string) => new Date(`${jour}T12:00:00`);
+  /**
+   * Plafond d'entrées reprises en séance. Le même principe que pour les cartes
+   * et les questions : une file de rattrapage qui en sert cinquante d'un coup
+   * n'est jamais reprise, et c'est le contenu du jour qui en pâtit.
+   */
+  const PLAFOND_JOURNAL = 12;
+
+  let seance: Seance;
+  let secondes = 0;
+  let minuterie: number | null = null;
+
+  /* ── Minuteur ─────────────────────────────────────────────────────── */
+
+  function afficherMinuteur() {
+    const m = String(Math.floor(secondes / 60)).padStart(2, '0');
+    const s = String(secondes % 60).padStart(2, '0');
+    $('minuteur').textContent = `${m}:${s}`;
+    // Repère visuel : la méthode vise 30 min à 1 h, sans jamais couper.
+    const jalon = $('jalon-minuteur');
+    if (secondes >= 3600) jalon.textContent = 'Au-delà d\'une heure';
+    else if (secondes >= 1800) jalon.textContent = '✓ Durée de séance atteinte';
+    else jalon.textContent = 'Repère : 30 min à 1 h';
+  }
+
+  function basculerMinuteur() {
+    if (minuterie !== null) {
+      clearInterval(minuterie);
+      minuterie = null;
+      $('bouton-minuteur').textContent = 'Reprendre';
+      return;
+    }
+    minuterie = window.setInterval(() => {
+      secondes += 1;
+      afficherMinuteur();
+    }, 1000);
+    $('bouton-minuteur').textContent = 'Pause';
+  }
+
+  /* ── Sauvegarde ───────────────────────────────────────────────────── */
+
+  let sauvegardeEnAttente: number | null = null;
+
+  function collecter(): Seance {
+    const restitutions: Record<string, string> = {};
+    for (const zone of document.querySelectorAll<HTMLTextAreaElement>('[data-restitution]')) {
+      restitutions[zone.dataset.restitution!] = zone.value;
+    }
+    const fiches = [...document.querySelectorAll<HTMLInputElement>('[data-fiche]:checked')].map(
+      (c) => c.dataset.fiche!,
+    );
+    return {
+      ...seance,
+      note: ($('note') as HTMLTextAreaElement).value,
+      restitutions,
+      fiches,
+      secondes: Math.max(seance.secondes, secondes),
+    };
+  }
+
+  async function sauvegarderBientot() {
+    if (sauvegardeEnAttente !== null) clearTimeout(sauvegardeEnAttente);
+    sauvegardeEnAttente = window.setTimeout(async () => {
+      seance = await sauvegarder(collecter());
+      $('etat-sauvegarde').textContent = 'Enregistré.';
+    }, 800);
+  }
+
+  /* ── Rendu ────────────────────────────────────────────────────────── */
+
+  async function preparer() {
+    const jour = parametreUrl('jour') ?? jourISO();
+    seance = await seanceDuJour(jour);
+    secondes = seance.secondes;
+    afficherMinuteur();
+
+    const sujet = themeParId(seance.theme);
+    const repos = estRepos(seance.theme);
+    $('bandeau-repos').classList.toggle('hidden', !repos);
+    $('retour').setAttribute('href', lien('/planification/'));
+    $('etiquette').textContent = repos
+      ? 'Jour de repos'
+      : seance.etendue
+        ? 'Révision du mois'
+        : 'Séance du jour';
+    $('titre').textContent = `${sujet?.icone ?? ''} ${sujet?.nom ?? seance.theme}`.trim();
+
+    const anterieures = await rappels(seance.theme, seance.etendue, seance.id);
+    $('sous-titre').textContent =
+      `${dateCourte.format(enDate(jour))}` +
+      (seance.etendue ? ' · rappel étendu des quatre dernières séances' : '') +
+      (seance.statut === 'terminee' ? ' · séance déjà terminée' : '');
+
+    /* 1. Rappels */
+    const zone = $('rappels');
+    zone.innerHTML = '';
+    if (!anterieures.length) {
+      const vide = document.createElement('p');
+      vide.className =
+        'rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400';
+      vide.textContent =
+        "Aucune séance antérieure sur cette matière : le rappel commencera à la prochaine rotation.";
+      zone.appendChild(vide);
+      $('bloc-rappels').querySelector('h2')!.textContent = '1. Restitution à blanc — sans objet';
+    } else {
+      anterieures.forEach((passee, index) => {
+        const rang = anterieures.length - index; // la plus ancienne porte le plus grand n
+        zone.appendChild(carteRappel(passee, rang));
+      });
+    }
+
+    /* 2. Reprise des erreurs, avant tout contenu nouveau */
+    // « Depuis » vaut le jour de la dernière séance de cette matière : ce qui a
+    // été manqué depuis est né de cette séance-là, et passe donc devant.
+    const derniere = anterieures[anterieures.length - 1];
+    const entrees = await pourLaSeance(
+      sujet?.matieres ?? [],
+      derniere ? `${derniere.jour}T00:00:00.000Z` : null,
+      PLAFOND_JOURNAL,
+    );
+    if (entrees.length) {
+      $('bloc-journal').classList.remove('hidden');
+      const resume = $('resume-journal');
+      const dire = (restant: number) =>
+        restant
+          ? `${restant} entrée(s) à reprendre dans cette matière.`
+          : 'Toutes les entrées de cette matière ont été reprises.';
+      resume.textContent = dire(entrees.length);
+      const items = await chargerItems(entrees);
+      if (items.length) {
+        void montrerJournal(items, $('journal-seance'), (bilan) => {
+          resume.textContent = dire(items.length - bilan.vus);
+        });
+      } else {
+        resume.textContent =
+          'Des entrées existent, mais leurs questions ne sont plus dans le contenu publié.';
+      }
+    }
+
+    /* 3. Contenu du jour */
+    const [manifeste, etats] = await Promise.all([chargerManifeste(), tousLesEtatsFiches()]);
+    const lues = new Set(etats.filter((e) => e.lu).map((e) => e.id));
+    // Les fiches non lues passent devant, dans l'ordre du programme : la
+    // méthode vise « 1 ou 2 pages minimum » par séance, encore faut-il savoir
+    // lesquelles. Les deux premières non lues sont signalées comme la
+    // proposition du jour ; rien n'empêche d'en ouvrir d'autres.
+    const toutes = fichesDuTheme(manifeste, seance.theme);
+    const fiches = [
+      ...toutes.filter((f) => !lues.has(f.id)),
+      ...toutes.filter((f) => lues.has(f.id)),
+    ];
+    const proposees = new Set(fiches.filter((f) => !lues.has(f.id)).slice(0, 2).map((f) => f.id));
+    const grille = $('fiches');
+    grille.innerHTML = '';
+    if (!fiches.length) {
+      const vide = document.createElement('p');
+      vide.className =
+        'rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 sm:col-span-2 dark:border-slate-700 dark:text-slate-400';
+      vide.textContent = "Aucune fiche publiée pour cette matière : la séance porte sur vos propres supports.";
+      grille.appendChild(vide);
+    }
+    const dejaCouvertes = new Set(seance.fiches ?? []);
+    for (const fiche of fiches) {
+      const proposee = proposees.has(fiche.id);
+      const carte = document.createElement('div');
+      carte.className = proposee
+        ? 'flex flex-col rounded-xl border border-indigo-300 bg-indigo-50 p-4 shadow-sm dark:border-indigo-700 dark:bg-indigo-950/40'
+        : 'flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900';
+
+      const ouvrir = document.createElement('a');
+      ouvrir.href = `${lien('/fiche/')}?id=${encodeURIComponent(fiche.id)}`;
+      ouvrir.className = 'group flex-1 transition';
+
+      const etiquette = document.createElement('p');
+      etiquette.className = lues.has(fiche.id)
+        ? 'etiquette text-emerald-700 dark:text-emerald-300'
+        : proposee
+          ? 'etiquette text-indigo-600 dark:text-indigo-400'
+          : 'etiquette text-slate-500 dark:text-slate-400';
+      etiquette.textContent = lues.has(fiche.id)
+        ? '✓ Déjà lue'
+        : proposee
+          ? 'Proposée aujourd\'hui'
+          : 'À lire';
+      const titre = document.createElement('p');
+      titre.className =
+        'texte-secable mt-1.5 font-semibold text-slate-900 group-hover:underline dark:text-white';
+      titre.textContent = fiche.titre;
+      const detail = document.createElement('p');
+      detail.className = 'mt-1 text-xs text-slate-500 dark:text-slate-400';
+      detail.textContent = fiche.fascicule;
+      ouvrir.append(etiquette, titre, detail);
+
+      // C'est cette case qui rend possible le rappel ciblé des séances
+      // suivantes : sans elle, on ne saurait pas ce qui a été vu ce jour-là.
+      const marque = document.createElement('label');
+      marque.className =
+        'mt-3 flex min-h-11 cursor-pointer items-center gap-2 border-t border-slate-100 pt-3 text-xs font-medium text-slate-600 dark:border-slate-800 dark:text-slate-300';
+      const case_ = document.createElement('input');
+      case_.type = 'checkbox';
+      case_.dataset.fiche = fiche.id;
+      case_.checked = dejaCouvertes.has(fiche.id);
+      case_.className = 'h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500';
+      case_.addEventListener('change', () => void sauvegarderBientot());
+      marque.append(case_, document.createTextNode('Travaillée pendant cette séance'));
+
+      carte.append(ouvrir, marque);
+      grille.appendChild(carte);
+    }
+
+    // Prétest de la fiche du jour, en tête de cette étape. On ne le propose que
+    // pour la première fiche proposée qui en a un et ne l'a pas déjà reçu :
+    // enchaîner deux prétests avant d'avoir lu quoi que ce soit ferait une
+    // barrière là où l'on voulait une amorce. La fiche complète n'est
+    // déchiffrée que pour les candidates, pas pour toute la matière.
+    for (const legere of fiches.filter((f) => proposees.has(f.id) && f.aPretest)) {
+      const complete = await chargerFiche(legere.id).catch(() => null);
+      if (!complete || !(await aProposer(complete))) continue;
+      const hote = $('pretest-seance');
+      void montrerPretest(complete, hote).then(() => hote.classList.add('hidden'));
+      break;
+    }
+
+    /* 4. Note de séance */
+    const note = $('note') as HTMLTextAreaElement;
+    note.value = seance.note;
+    majCompteur();
+    note.addEventListener('input', () => {
+      majCompteur();
+      void sauvegarderBientot();
+    });
+
+    $('bouton-minuteur').addEventListener('click', basculerMinuteur);
+    $('enregistrer').addEventListener('click', async () => {
+      seance = await sauvegarder(collecter());
+      $('etat-sauvegarde').textContent = 'Séance enregistrée : vous pourrez la reprendre plus tard.';
+    });
+    $('terminer').addEventListener('click', cloturer);
+  }
+
+  /** Bloc de restitution d'une séance antérieure, notes masquées par défaut. */
+  function carteRappel(passee: Seance, rang: number): HTMLElement {
+    const bloc = document.createElement('div');
+    bloc.className =
+      'rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900';
+
+    const entete = document.createElement('div');
+    entete.className = 'flex flex-wrap items-baseline justify-between gap-2';
+    const etiquette = document.createElement('p');
+    etiquette.className = 'etiquette text-indigo-600 dark:text-indigo-400';
+    etiquette.textContent = `Séance n-${rang}`;
+    const quand = document.createElement('span');
+    quand.className = 'text-xs text-slate-500 dark:text-slate-400';
+    quand.textContent = dateCourte.format(enDate(passee.jour));
+    entete.append(etiquette, quand);
+
+    const consigne = document.createElement('p');
+    consigne.className = 'mt-1 text-sm text-slate-600 dark:text-slate-300';
+    consigne.textContent = 'Expliquez, de mémoire, ce qui avait été vu ce jour-là.';
+
+    const zone = document.createElement('textarea');
+    zone.rows = 6;
+    zone.dataset.restitution = String(passee.id);
+    zone.value = seance.restitutions?.[String(passee.id)] ?? '';
+    zone.placeholder = 'Ce dont je me souviens, avec mes mots…';
+    zone.className =
+      'mt-3 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-indigo-900';
+    zone.addEventListener('input', () => void sauvegarderBientot());
+
+    // Les notes de l'époque restent repliées : les ouvrir avant d'avoir écrit
+    // viderait l'exercice de son sens.
+    const details = document.createElement('details');
+    details.className = 'mt-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-950/60';
+    const resume = document.createElement('summary');
+    resume.className =
+      'cursor-pointer text-sm font-medium text-indigo-600 dark:text-indigo-400';
+    resume.textContent = 'Comparer avec ma note de séance de l\'époque';
+    const contenu = document.createElement('p');
+    contenu.className =
+      'texte-secable mt-3 text-sm leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-300';
+    contenu.textContent = passee.note.trim() || 'Aucune note n\'avait été rédigée lors de cette séance.';
+    details.append(resume, contenu);
+
+    bloc.append(entete, consigne, zone, details);
+
+    // Les deux modes déjà existants, mais restreints aux fiches réellement
+    // couvertes ce jour-là — pas à la matière entière. Sans fiches cochées à
+    // l'époque, il n'y a rien à cibler : seule la feuille blanche reste.
+    const ciblees = passee.fiches ?? [];
+    if (ciblees.length) {
+      const parametre = `?fiches=${ciblees.map(encodeURIComponent).join(',')}`;
+      const actions = document.createElement('div');
+      actions.className = 'mt-3 flex flex-wrap items-center gap-2';
+      const intro = document.createElement('span');
+      intro.className = 'text-xs text-slate-500 dark:text-slate-400';
+      intro.textContent = `Au choix, sur les ${ciblees.length} fiche(s) de ce jour-là :`;
+      actions.appendChild(intro);
+      for (const [etiquette, chemin] of [
+        ['Flashcards', '/flashcards/'],
+        ['QCM', '/quiz/cours/'],
+      ] as const) {
+        const bouton = document.createElement('a');
+        bouton.href = `${lien(chemin)}${parametre}`;
+        bouton.className =
+          'inline-flex min-h-11 items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60';
+        bouton.textContent = etiquette;
+        actions.appendChild(bouton);
+      }
+      const garde = document.createElement('p');
+      garde.className = 'mt-2 text-xs text-slate-500 dark:text-slate-400';
+      garde.textContent =
+        'Votre séance est enregistrée au fil de la saisie : vous pouvez revenir ici ensuite.';
+      bloc.append(actions, garde);
+    }
+
+    return bloc;
+  }
+
+  function majCompteur() {
+    const valeur = ($('note') as HTMLTextAreaElement).value.trim();
+    const signes = valeur.length;
+    const mots = valeur ? valeur.split(/\s+/).length : 0;
+    // Une page dactylographiée tourne autour de 1 500 signes.
+    const pages = (signes / 1500).toFixed(1);
+    $('compteur-note').textContent =
+      `${mots} mot(s) · ${signes} signe(s) · environ ${pages} page(s) — objectif : 1 à 2 pages.`;
+  }
+
+  async function cloturer() {
+    if (minuterie !== null) basculerMinuteur();
+    const resultat = await terminer(collecter(), secondes);
+    seance = resultat.seance;
+
+    const bilan = $('bilan');
+    bilan.textContent =
+      `Séance enregistrée — ${formaterDuree(seance.secondes)}, +${resultat.xpGagne} XP` +
+      (resultat.monteeDeNiveau ? ' · niveau supérieur atteint !' : '') +
+      '. Elle vous sera proposée à restituer lors des prochaines séances de cette matière.';
+    bilan.classList.remove('hidden');
+    $('etiquette').textContent = 'Séance terminée';
+    ($('terminer') as HTMLButtonElement).disabled = true;
+    ($('terminer') as HTMLButtonElement).classList.add('opacity-60');
+  }
+
+  // Le barème est exposé pour rester lisible depuis la console si besoin.
+  void xpSeance;
+
+  auDeverrouillage(async () => {
+    await preparer();
+    $('chargement').classList.add('hidden');
+    $('seance').classList.remove('hidden');
+  });
+</script>

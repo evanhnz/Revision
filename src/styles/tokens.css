@@ -1,0 +1,208 @@
+/**
+ * ╔════════════════════════════════════════════════════════════════════════╗
+ * ║  TOKENS — source unique des couleurs et des polices du site            ║
+ * ╚════════════════════════════════════════════════════════════════════════╝
+ *
+ * Deux palettes, un seul jeu de classes
+ * ------------------------------------------------------------------------
+ * Le site est écrit avec les classes Tailwind habituelles (« bg-slate-50 »,
+ * « text-indigo-600 »…). Tailwind 4 ne compile pas ces classes en couleurs
+ * figées : chaque utilitaire pointe vers une variable CSS — par exemple
+ * « .bg-slate-50 { background-color: var(--color-slate-50) } ».
+ *
+ * On exploite cette indirection : les variables ne sont redéfinies que sous
+ * « [data-theme='clair'] ». Conséquence directe et vérifiable :
+ *
+ *   • THÈME SOMBRE — aucune variable n'est touchée, il conserve donc
+ *     exactement les couleurs qu'il avait (slate/indigo d'origine) ;
+ *   • THÈME CLAIR — les mêmes classes rendent la palette de l'État, sans
+ *     qu'une seule page ait à être réécrite.
+ *
+ * Palette claire — inspiration
+ * ------------------------------------------------------------------------
+ * Elle s'inspire de la charte graphique de l'État (info.gouv.fr) : Bleu France
+ * (#000091), Rouge Marianne (#E1000F) et gris neutres. Ce sont des points de
+ * départ ajustés pour tenir le contraste WCAG AA sur fond clair — le script
+ * « scripts/verifier-contrastes.mjs » vérifie les combinaisons principales.
+ *
+ * Ce que l'on NE reprend PAS : la typographie Marianne et le bloc-marque
+ * (logo, « République Française », devise), réservés à l'État.
+ *
+ * Correspondance des familles Tailwind en thème clair
+ * ------------------------------------------------------------------------
+ *   slate-*   → gris neutres de la charte (fonds, bordures, textes)
+ *   indigo-*  → Bleu France (couleur d'action : liens, onglet actif, barres)
+ *   violet-*  → Bleu France plus clair (dégradés de la carte « Niveau »)
+ *   red-*     → Rouge Marianne (alertes, accent tricolore)
+ *   emerald-* → vert « succès » de la charte
+ *   amber-*   → orange « avertissement » de la charte
+ *
+ * Tokens sémantiques
+ * ------------------------------------------------------------------------
+ * Les variables « --etat-* » nomment les rôles plutôt que les teintes. Elles
+ * sont définies dans les DEUX thèmes et servent aux éléments qui ne passent
+ * pas par Tailwind : le pied de page, le bandeau tricolore, et surtout la
+ * surcharge de Syllogismes (« apps/syllogismes/src/assets/css/revinsp.css »),
+ * qui réutilise ces valeurs au lieu de les dupliquer.
+ */
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  1. Typographie — commune aux deux thèmes                                */
+/* ════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* Public Sans en tête, Arial ensuite : c'est le substitut que la charte
+     elle-même autorise quand Marianne n'est pas disponible. */
+  --font-sans: 'Public Sans', Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Spectral', 'Iowan Old Style', Georgia, serif;
+
+  /* Coins arrondis discrets : la charte de l'État est à angles vifs, on garde
+     un arrondi léger plutôt que les grands rayons d'origine. */
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --radius-3xl: 0.875rem;
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  2. Thème sombre — tokens sémantiques uniquement                         */
+/*     Les couleurs Tailwind restent celles d'origine : rien n'est redéfini. */
+/* ════════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme='sombre'] {
+  --etat-fond: #020617; /* slate-950 */
+  --etat-fond-eleve: #0f172a; /* slate-900 */
+  --etat-fond-alt: #1e293b; /* slate-800 */
+  --etat-bordure: #1e293b; /* slate-800 */
+  --etat-bordure-forte: #334155; /* slate-700 */
+  --etat-texte: #e2e8f0; /* slate-200 */
+  --etat-texte-fort: #ffffff;
+  --etat-texte-faible: #94a3b8; /* slate-400 */
+  --etat-action: #818cf8; /* indigo-400 */
+  --etat-action-forte: #a5b4fc; /* indigo-300 */
+  --etat-action-fond: #1e1b4b; /* indigo-950 */
+  --etat-accent: #f87171; /* rouge lisible sur fond sombre */
+  --etat-succes: #34d399; /* emerald-400 */
+  --etat-alerte: #fbbf24; /* amber-400 */
+
+  /* Barre de défilement : un gris assez contrasté pour rester saisissable
+     à la souris, assez sourd pour ne pas concurrencer le contenu. */
+  --etat-defilement: #334155; /* slate-700 */
+  --etat-defilement-survol: #64748b; /* slate-500 */
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  3. Thème clair — palette de l'État                                      */
+/* ════════════════════════════════════════════════════════════════════════ */
+
+[data-theme='clair'] {
+  /* --- Tokens sémantiques ------------------------------------------------ */
+  --etat-fond: #f6f6f6;
+  --etat-fond-eleve: #ffffff;
+  --etat-fond-alt: #eeeeee;
+  --etat-bordure: #dddddd;
+  --etat-bordure-forte: #929292;
+  --etat-texte: #3a3a3a;
+  --etat-texte-fort: #161616;
+  --etat-texte-faible: #666666;
+  --etat-action: #000091; /* Bleu France */
+  --etat-action-forte: #00006b;
+  --etat-action-fond: #f5f5fe;
+  --etat-accent: #e1000f; /* Rouge Marianne */
+  --etat-succes: #18753c;
+  --etat-alerte: #b34000;
+  --etat-defilement: #cecece;
+  --etat-defilement-survol: #929292;
+
+  /* --- Gris neutres : remplacent « slate-* » ------------------------------ */
+  --color-slate-50: #f6f6f6;
+  --color-slate-100: #eeeeee;
+  --color-slate-200: #dddddd;
+  --color-slate-300: #cecece;
+  --color-slate-400: #929292;
+  --color-slate-500: #666666;
+  --color-slate-600: #3a3a3a;
+  --color-slate-700: #2a2a2a;
+  --color-slate-800: #1e1e1e;
+  --color-slate-900: #161616;
+  --color-slate-950: #0a0a0a;
+
+  /* Quelques composants utilisent « gray-* » ou « zinc-* » : on aligne. */
+  --color-gray-50: #f6f6f6;
+  --color-gray-100: #eeeeee;
+  --color-gray-200: #dddddd;
+  --color-gray-300: #cecece;
+  --color-gray-400: #929292;
+  --color-gray-500: #666666;
+  --color-gray-600: #3a3a3a;
+  --color-gray-700: #2a2a2a;
+  --color-gray-800: #1e1e1e;
+  --color-gray-900: #161616;
+  --color-gray-950: #0a0a0a;
+
+  /* --- Bleu France : remplace « indigo-* » -------------------------------- */
+  /* « indigo-600 » est la teinte des liens et des éléments actifs : c'est
+     elle qui porte le Bleu France de référence. */
+  --color-indigo-50: #f5f5fe;
+  --color-indigo-100: #ececfe;
+  --color-indigo-200: #cacafb;
+  --color-indigo-300: #a1a1f8;
+  --color-indigo-400: #8585f6;
+  --color-indigo-500: #4747d8;
+  --color-indigo-600: #000091;
+  --color-indigo-700: #000074;
+  --color-indigo-800: #00005c;
+  --color-indigo-900: #000045;
+  --color-indigo-950: #00002e;
+
+  /* --- Dégradés : « violet-* » suit le Bleu France ------------------------ */
+  /* La carte « Niveau » du tableau de bord utilise « from-indigo-600
+     to-violet-600 » : un violet franc jurerait avec le Bleu France. */
+  --color-violet-400: #8585f6;
+  --color-violet-500: #4747d8;
+  --color-violet-600: #2323a8;
+  --color-violet-700: #1b1b87;
+  --color-violet-800: #141466;
+  --color-violet-900: #0d0d45;
+  --color-violet-950: #06062e;
+
+  /* --- Rouge Marianne : remplace « red-* » -------------------------------- */
+  --color-red-50: #fef4f4;
+  --color-red-100: #fddede;
+  --color-red-200: #fcbfbf;
+  --color-red-300: #f99;
+  --color-red-400: #f66;
+  --color-red-500: #f22;
+  --color-red-600: #e1000f;
+  --color-red-700: #b60010;
+  --color-red-800: #8f000c;
+  --color-red-900: #6b0009;
+  --color-red-950: #450006;
+
+  /* --- Vert « succès » de la charte : remplace « emerald-* » -------------- */
+  --color-emerald-50: #eafaf0;
+  --color-emerald-100: #c9f3d9;
+  --color-emerald-200: #9ee5b9;
+  --color-emerald-300: #6ecf95;
+  --color-emerald-400: #34b56d;
+  --color-emerald-500: #229a55;
+  --color-emerald-600: #18753c;
+  --color-emerald-700: #135e30;
+  --color-emerald-800: #0e4724;
+  --color-emerald-900: #0a3319;
+  --color-emerald-950: #05200f;
+
+  /* --- Orange « avertissement » : remplace « amber-* » -------------------- */
+  --color-amber-50: #fff4f0;
+  --color-amber-100: #ffe2d6;
+  --color-amber-200: #ffc9b3;
+  --color-amber-300: #ffa88a;
+  --color-amber-400: #f97c4e;
+  --color-amber-500: #e05b26;
+  --color-amber-600: #b34000;
+  --color-amber-700: #903300;
+  --color-amber-800: #6e2700;
+  --color-amber-900: #4d1b00;
+  --color-amber-950: #2e1000;
+}

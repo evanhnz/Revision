@@ -1,0 +1,312 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Bibliothèque" actif="bibliotheque">
+  <div class="mb-5 flex flex-wrap items-center gap-3">
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Bibliothèque</h1>
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <button
+        id="tout-deplier"
+        type="button"
+        class="hidden rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
+      >
+        Tout déplier
+      </button>
+      <label class="sr-only" for="filtre-matiere">Filtrer par matière</label>
+      <select
+        id="filtre-matiere"
+        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+      >
+        <option value="">Toutes les matières</option>
+      </select>
+      <label class="sr-only" for="filtre-statut">Filtrer par statut</label>
+      <select
+        id="filtre-statut"
+        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+      >
+        <option value="">Tous les statuts</option>
+        <option value="non-lu">Non lues</option>
+        <option value="lu">Lues</option>
+        <option value="dues">Cartes à réviser</option>
+        <option value="faible">Maîtrise &lt; 50 %</option>
+        <option value="acquis">Maîtrise ≥ 80 %</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Déchiffrement du contenu…</div>
+  <div id="liste" class="hidden space-y-6"></div>
+  <p id="vide" class="hidden py-10 text-center text-sm text-slate-500">Aucune fiche ne correspond à ces filtres.</p>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { construireVue, type Vue } from '../lib/agregats';
+  import { lien, parametreUrl, pluriel } from '../lib/ui';
+  import { chargerManifeste, type Manifeste } from '../lib/contenu';
+
+  let vue: Vue;
+  let arbre: Manifeste['arbre'] = [];
+  let parId = new Map<string, Vue['fiches'][number]>();
+
+  function barre(pourcent: number, couleur = 'bg-indigo-500') {
+    return `<div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div class="h-full rounded-full ${couleur} transition-all duration-500" style="width:${pourcent}%"></div>
+    </div>`;
+  }
+
+  /** Construit la ligne d'une fiche (DOM, pour insérer les titres sans risque). */
+  function ligneFiche(f: Vue['fiches'][number]) {
+    const pourcent = Math.round(f.maitrise * 100);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <a class="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-indigo-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700">
+        <div class="min-w-0 flex-1">
+          <p class="truncate font-medium text-slate-900 dark:text-white" data-titre></p>
+          <div class="mt-1.5 flex flex-wrap items-center gap-1.5" data-etiquettes></div>
+        </div>
+        <div class="w-24 shrink-0 text-right">
+          <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">${pourcent} %</span>
+          <div class="mt-1">${barre(pourcent, pourcent >= 80 ? 'bg-emerald-500' : 'bg-indigo-500')}</div>
+        </div>
+      </a>`;
+    li.querySelector('a')!.href = `${lien('/fiche/')}?id=${encodeURIComponent(f.fiche.id)}`;
+    li.querySelector('[data-titre]')!.textContent = f.fiche.titre;
+
+    const etiquettes = li.querySelector('[data-etiquettes]')!;
+    const ajouter = (texte: string, classes: string) => {
+      const span = document.createElement('span');
+      span.className = `rounded-full px-2 py-0.5 text-[11px] font-medium ${classes}`;
+      span.textContent = texte;
+      etiquettes.appendChild(span);
+    };
+    if (f.lu) ajouter('lue', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300');
+    if (f.cartesDues)
+      ajouter(`${f.cartesDues} à réviser`, 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300');
+    if (f.fiche.nbQuiz)
+      ajouter(pluriel(f.fiche.nbQuiz, 'question'), 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300');
+    return li;
+  }
+
+  function filtrer(f: Vue['fiches'][number], statut: string) {
+    if (statut === 'non-lu') return !f.lu;
+    if (statut === 'lu') return f.lu;
+    if (statut === 'dues') return f.cartesDues > 0;
+    if (statut === 'faible') return f.maitrise < 0.5;
+    if (statut === 'acquis') return f.maitrise >= 0.8;
+    return true;
+  }
+
+  // --- Mémoire des sections ouvertes ---------------------------------------
+  // Le choix de l'utilisateur prime sur les valeurs par défaut, et il survit à
+  // la navigation. Le stockage peut échouer (navigation privée, cookies
+  // bloqués) : la page doit alors continuer de fonctionner sans mémoire.
+  const CLE_SECTIONS = 'revinsp.bibliotheque.sections';
+  let sections: Record<string, boolean> = {};
+
+  function lireSections() {
+    try {
+      const brut = localStorage.getItem(CLE_SECTIONS);
+      sections = brut ? (JSON.parse(brut) as Record<string, boolean>) : {};
+    } catch {
+      sections = {};
+    }
+  }
+
+  function ecrireSections() {
+    try {
+      localStorage.setItem(CLE_SECTIONS, JSON.stringify(sections));
+    } catch {
+      /* Pas de mémoire disponible : on s'en passe. */
+    }
+  }
+
+  /**
+   * Fabrique une section dépliable dont la ligne de titre entière est le
+   * bouton d'ouverture. « details » apporte nativement le clavier et
+   * l'annonce d'état aux lecteurs d'écran.
+   */
+  function sectionDepliante(options: {
+    cle: string;
+    niveau: 'matiere' | 'fascicule';
+    titre: string;
+    pourcent: number;
+    nbFiches: number;
+    ouvertParDefaut: boolean;
+  }) {
+    const { cle, niveau, titre, pourcent, nbFiches, ouvertParDefaut } = options;
+    const details = document.createElement('details');
+    details.className =
+      niveau === 'matiere'
+        ? 'depliant depliant-titre rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40'
+        : 'depliant depliant-titre mt-4';
+    details.open = sections[cle] ?? ouvertParDefaut;
+
+    const titreHtml =
+      niveau === 'matiere'
+        ? '<h2 class="min-w-0 flex-1 truncate text-lg font-semibold" data-titre></h2>'
+        : '<h3 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-600 dark:text-slate-300" data-titre></h3>';
+    const tailleMeta = niveau === 'matiere' ? 'text-sm' : 'text-xs';
+
+    const resume = document.createElement('summary');
+    resume.className = 'min-h-11 cursor-pointer items-center';
+    resume.innerHTML = `
+      ${titreHtml}
+      <span class="depliant-compte shrink-0 ${tailleMeta} text-slate-400">${pluriel(nbFiches, 'fiche')}</span>
+      <span class="shrink-0 ${tailleMeta} text-slate-500 dark:text-slate-400">${pourcent} %</span>`;
+    resume.querySelector('[data-titre]')!.textContent = titre;
+    details.appendChild(resume);
+
+    details.addEventListener('toggle', () => {
+      sections[cle] = details.open;
+      ecrireSections();
+      rafraichirBouton();
+    });
+    return details;
+  }
+
+  /** Le bouton bascule vers l'action inverse de l'état majoritaire. */
+  function rafraichirBouton() {
+    const bouton = document.getElementById('tout-deplier') as HTMLButtonElement | null;
+    if (!bouton) return;
+    const toutes = [...document.querySelectorAll<HTMLDetailsElement>('#liste details')];
+    bouton.classList.toggle('hidden', !toutes.length);
+    const replier = toutes.length > 0 && toutes.every((d) => d.open);
+    bouton.textContent = replier ? 'Tout replier' : 'Tout déplier';
+    bouton.dataset.action = replier ? 'replier' : 'deplier';
+  }
+
+  function basculerTout() {
+    const ouvrir = (document.getElementById('tout-deplier') as HTMLButtonElement).dataset.action !== 'replier';
+    for (const details of document.querySelectorAll<HTMLDetailsElement>('#liste details')) details.open = ouvrir;
+    rafraichirBouton();
+  }
+
+  type LigneVue = Vue['fiches'][number];
+  type Noeud = Manifeste['arbre'][number];
+
+  /** Toutes les fiches d'une catégorie, sous-catégories comprises. */
+  function fichesSousArbre(noeud: Noeud): string[] {
+    return [...noeud.fiches, ...noeud.enfants.flatMap(fichesSousArbre)];
+  }
+
+  const moyenne = (lignes: LigneVue[]) =>
+    lignes.length ? lignes.reduce((n, l) => n + l.maitrise, 0) / lignes.length : 0;
+
+  /** Lien discret vers l'éditeur, pour créer une fiche dans cette catégorie. */
+  function lienCreation(chemin: string[]) {
+    const a = document.createElement('a');
+    a.href = `${lien('/editeur/')}?nouvelle=${encodeURIComponent(JSON.stringify(chemin))}`;
+    a.className =
+      'inline-flex min-h-9 items-center rounded-lg px-2 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40';
+    a.textContent = '+ Nouvelle fiche ici';
+    return a;
+  }
+
+  /**
+   * Rend une catégorie et ses descendants. Retourne null si, filtres
+   * appliqués, rien n'y reste à montrer.
+   */
+  function rendreNoeud(noeud: Noeud, profondeur: number, statut: string, filtreActif: boolean): HTMLElement | null {
+    const directes = noeud.fiches
+      .map((id) => parId.get(id))
+      .filter((l): l is LigneVue => Boolean(l) && filtrer(l!, statut));
+    const enfants = noeud.enfants
+      .map((e) => rendreNoeud(e, profondeur + 1, statut, filtreActif))
+      .filter((e): e is HTMLElement => e !== null);
+
+    const toutes = fichesSousArbre(noeud)
+      .map((id) => parId.get(id))
+      .filter((l): l is LigneVue => Boolean(l) && filtrer(l!, statut));
+    // Sans filtre, une catégorie vide reste visible : c'est le plan à remplir.
+    if (!toutes.length && filtreActif) return null;
+    compteur += directes.length;
+
+    const section = sectionDepliante({
+      cle: `n:${noeud.chemin.join('/')}`,
+      niveau: profondeur === 0 ? 'matiere' : 'fascicule',
+      titre: profondeur === 0 && noeud.icone ? `${noeud.icone}  ${noeud.nom}` : noeud.nom,
+      pourcent: Math.round(moyenne(toutes) * 100),
+      nbFiches: toutes.length,
+      ouvertParDefaut: profondeur > 0 || filtreActif,
+    });
+    if (profondeur > 0) {
+      section.classList.add('border-l-2', 'border-slate-200', 'pl-3', 'dark:border-slate-700');
+    }
+
+    if (directes.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'mt-2 space-y-2';
+      for (const f of directes) ul.appendChild(ligneFiche(f));
+      section.appendChild(ul);
+    }
+    for (const e of enfants) section.appendChild(e);
+    // Le raccourci de création n'apparaît qu'au bout des branches : partout
+    // ailleurs il se répéterait à chaque niveau.
+    if (!filtreActif && !noeud.enfants.length) {
+      const pied = document.createElement('div');
+      pied.className = 'mt-1';
+      if (!toutes.length && profondeur === 0) {
+        const vide = document.createElement('p');
+        vide.className = 'mt-2 text-sm text-slate-500 dark:text-slate-400';
+        vide.textContent = 'Aucune fiche pour l\'instant.';
+        pied.appendChild(vide);
+      }
+      pied.appendChild(lienCreation(noeud.chemin));
+      section.appendChild(pied);
+    }
+    return section;
+  }
+
+  let compteur = 0;
+
+  function rendre() {
+    const matiereChoisie = (document.getElementById('filtre-matiere') as HTMLSelectElement).value;
+    const statut = (document.getElementById('filtre-statut') as HTMLSelectElement).value;
+    // Filtrer, c'est chercher : on ouvre alors ce qui reste à l'écran plutôt
+    // que de laisser l'utilisateur déplier lui-même le résultat de sa recherche.
+    const filtreActif = Boolean(matiereChoisie || statut);
+    const liste = document.getElementById('liste')!;
+    liste.innerHTML = '';
+    compteur = 0;
+
+    for (const noeud of arbre) {
+      if (matiereChoisie && noeud.nom !== matiereChoisie) continue;
+      const element = rendreNoeud(noeud, 0, statut, filtreActif);
+      if (element) liste.appendChild(element);
+    }
+
+    document.getElementById('vide')!.classList.toggle('hidden', compteur > 0 || !filtreActif);
+    rafraichirBouton();
+  }
+
+  async function initialiser() {
+    vue = await construireVue();
+    arbre = (await chargerManifeste()).arbre ?? [];
+    parId = new Map(vue.fiches.map((l) => [l.fiche.id, l]));
+    lireSections();
+
+    const selectMatiere = document.getElementById('filtre-matiere') as HTMLSelectElement;
+    for (const matiere of arbre) {
+      const option = document.createElement('option');
+      option.value = matiere.nom;
+      option.textContent = matiere.nom;
+      selectMatiere.appendChild(option);
+    }
+    const depuisUrl = parametreUrl('matiere');
+    if (depuisUrl) selectMatiere.value = depuisUrl;
+
+    document.getElementById('tout-deplier')!.addEventListener('click', basculerTout);
+    selectMatiere.addEventListener('change', rendre);
+    document.getElementById('filtre-statut')!.addEventListener('change', rendre);
+
+    rendre();
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('liste')!.classList.remove('hidden');
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(initialiser);
+</script>

@@ -1,0 +1,136 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Journal d'erreurs" actif="journal">
+  <h1 class="mb-1 text-2xl font-bold text-slate-900 dark:text-white">Journal d'erreurs</h1>
+  <p class="mb-5 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+    Tout ce que vous avez manqué en quiz, en QCM ou sur une flashcard oubliée attend ici, en plus
+    de son passage normalement programmé. Une entrée ne disparaît qu'après <strong>deux reprises
+    réussies lors de sessions différentes</strong> : une seule peut être un coup de chance. Ces
+    entrées vous sont de toute façon servies au début de la prochaine séance de leur matière —
+    cette page n'est qu'une vue d'ensemble.
+  </p>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Lecture du journal…</div>
+
+  <div id="journal" class="hidden">
+    <div
+      id="resume"
+      class="mb-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900"
+    >
+      <p id="total" class="text-lg font-bold text-slate-900 dark:text-white"></p>
+      <p id="detail-total" class="mt-1 text-sm text-slate-500 dark:text-slate-400"></p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button
+          id="reviser"
+          class="hidden min-h-11 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+        >
+          Reprendre maintenant
+        </button>
+        <select
+          id="matiere"
+          class="hidden min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+        ></select>
+      </div>
+    </div>
+
+    <div id="session" class="mb-5 hidden"></div>
+    <div id="par-matiere" class="space-y-4"></div>
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { comptesParMatiere, entreesOuvertes, REUSSITES_POUR_FERMER } from '../lib/journal';
+  import { chargerItems, montrer } from '../lib/journal-revision';
+  import { pluriel } from '../lib/ui';
+
+  const $ = (id: string) => document.getElementById(id)!;
+  const PLAFOND = 20;
+
+  async function peindre() {
+    const comptes = await comptesParMatiere();
+    const total = comptes.reduce((somme, m) => somme + m.total, 0);
+
+    $('total').textContent = total
+      ? `${pluriel(total, 'entrée ouverte', 'entrées ouvertes')}`
+      : 'Aucune entrée ouverte.';
+    $('detail-total').textContent = total
+      ? `Chacune sortira après ${REUSSITES_POUR_FERMER} reprises réussies dans des sessions différentes.`
+      : 'Rien à reprendre : tout ce que vous aviez manqué a été retrouvé deux fois.';
+
+    const bouton = $('reviser') as HTMLButtonElement;
+    const menu = $('matiere') as HTMLSelectElement;
+    bouton.classList.toggle('hidden', total === 0);
+    menu.classList.toggle('hidden', total === 0);
+
+    const choisie = menu.value;
+    menu.replaceChildren();
+    for (const [valeur, libelle] of [
+      ['', `Toutes les matières (${total})`],
+      ...comptes.map((m) => [m.matiere, `${m.matiere} (${m.total})`] as [string, string]),
+    ] as [string, string][]) {
+      const option = document.createElement('option');
+      option.value = valeur;
+      option.textContent = libelle;
+      menu.appendChild(option);
+    }
+    if (choisie) menu.value = choisie;
+
+    const liste = $('par-matiere');
+    liste.replaceChildren();
+    for (const matiere of comptes) {
+      const bloc = document.createElement('section');
+      bloc.className =
+        'rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900';
+      const titre = document.createElement('h2');
+      titre.className = 'font-semibold text-slate-900 dark:text-white';
+      titre.textContent = `${matiere.matiere} — ${pluriel(matiere.total, 'entrée', 'entrées')}`;
+      bloc.appendChild(titre);
+      const ul = document.createElement('ul');
+      ul.className = 'mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300';
+      for (const fascicule of matiere.fascicules) {
+        const li = document.createElement('li');
+        li.className = 'flex items-baseline justify-between gap-3';
+        const nom = document.createElement('span');
+        nom.className = 'texte-secable';
+        nom.textContent = fascicule.nom;
+        const compte = document.createElement('span');
+        compte.className = 'tabular-nums text-slate-500 dark:text-slate-400';
+        compte.textContent = String(fascicule.total);
+        li.append(nom, compte);
+        ul.appendChild(li);
+      }
+      bloc.appendChild(ul);
+      liste.appendChild(bloc);
+    }
+  }
+
+  async function reprendre() {
+    const menu = $('matiere') as HTMLSelectElement;
+    const toutes = await entreesOuvertes();
+    const filtrees = menu.value ? toutes.filter((e) => e.matiere === menu.value) : toutes;
+    // Le plafond vaut ici comme ailleurs : une file de rattrapage qui sert
+    // deux cents items d'un coup ne se reprend jamais.
+    const items = await chargerItems(
+      [...filtrees]
+        .sort((a, b) => a.derniereErreurLe.localeCompare(b.derniereErreurLe))
+        .slice(0, PLAFOND),
+    );
+    if (!items.length) return;
+    (document.getElementById('reviser') as HTMLButtonElement).disabled = true;
+    await montrer(items, $('session'));
+    (document.getElementById('reviser') as HTMLButtonElement).disabled = false;
+    await peindre();
+  }
+
+  async function initialiser() {
+    await peindre();
+    $('reviser').addEventListener('click', () => void reprendre());
+    $('chargement').classList.add('hidden');
+    $('journal').classList.remove('hidden');
+  }
+
+  auDeverrouillage(initialiser);
+</script>

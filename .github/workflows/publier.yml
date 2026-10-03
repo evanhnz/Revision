@@ -1,0 +1,73 @@
+# Publication automatique sur GitHub Pages, à chaque enregistrement.
+#
+# Le dépôt ne contient que des fiches chiffrées (sources/). Ce workflow les
+# déchiffre avec le secret SITE_PASSWORD, construit le site (lui aussi
+# chiffré) et le publie. Le mot de passe n'apparaît jamais dans le dépôt.
+name: Publier le site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Une publication à la fois ; un enregistrement arrivé pendant la précédente
+# attend son tour au lieu de l'interrompre.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    env:
+      SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+      # Les fiches audio demandent un modèle de voix de plusieurs centaines de
+      # Mo : elles ne sont pas produites en ligne (voir README).
+      REVINSP_SANS_PODCAST: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier le secret
+        run: |
+          if [ -z "$SITE_PASSWORD" ]; then
+            echo "::error::Le secret SITE_PASSWORD manque (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Préparer le contenu
+        run: |
+          echo "BASE_PATH=${{ steps.pages.outputs.base_path }}" >> "$GITHUB_ENV"
+          echo "PUBLIC_MOT_DE_PASSE_HASH=$(printf %s "$SITE_PASSWORD" | sha256sum | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          node scripts/sources.mjs dechiffrer
+          node scripts/init-contenu.mjs
+
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  publier:
+    needs: construire
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v4

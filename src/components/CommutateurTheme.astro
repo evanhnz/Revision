@@ -1,0 +1,174 @@
+---
+/**
+ * Commutateur de thème — clair / sombre / système.
+ *
+ * Même principe que sur les sites de l'État (info.gouv.fr) : trois options
+ * explicites, la dernière suivant la préférence du système d'exploitation.
+ *
+ * Deux valeurs distinctes circulent, et il est important de ne pas les
+ * confondre :
+ *
+ *   • le CHOIX      — « clair », « sombre » ou « systeme », conservé dans
+ *                     localStorage sous la clé « revinsp.theme » et reflété
+ *                     par l'attribut « data-theme-choix » sur <html> ;
+ *   • le THÈME RENDU — « clair » ou « sombre », porté par « data-theme »,
+ *                     c'est lui seul que le CSS regarde.
+ *
+ * Le choix par défaut, en l'absence de valeur enregistrée, est « sombre » :
+ * l'expérience existante ne change pas tant que rien n'est choisi.
+ */
+---
+
+<div class="relative">
+  <button
+    id="bouton-theme"
+    type="button"
+    aria-haspopup="true"
+    aria-expanded="false"
+    aria-controls="menu-theme"
+    title="Choisir le thème"
+    aria-label="Choisir le thème d'affichage"
+    class="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-400"
+  >
+    <svg
+      class="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M12 3v18" stroke-linecap="round"></path>
+      <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"></path>
+    </svg>
+  </button>
+
+  <div
+    id="menu-theme"
+    role="group"
+    aria-label="Thème d'affichage"
+    hidden
+    class="absolute right-0 z-50 mt-2 w-52 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+  >
+    <p class="px-2 py-1.5 text-xs font-bold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+      Thème d'affichage
+    </p>
+    {
+      [
+        { valeur: 'clair', libelle: 'Clair', detail: 'Palette institutionnelle' },
+        { valeur: 'sombre', libelle: 'Sombre', detail: 'Confort en soirée' },
+        { valeur: 'systeme', libelle: 'Système', detail: 'Suit votre appareil' },
+      ].map((option) => (
+        <button
+          type="button"
+          data-choix-theme={option.valeur}
+          aria-pressed="false"
+          class="group flex w-full items-start gap-2 rounded-md px-2 py-2 text-left text-sm transition hover:bg-slate-100 aria-pressed:bg-indigo-50 aria-pressed:text-indigo-700 dark:hover:bg-slate-800 dark:aria-pressed:bg-indigo-950 dark:aria-pressed:text-indigo-300"
+        >
+          <span
+            aria-hidden="true"
+            class="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-slate-400 transition-all group-aria-pressed:border-[5px] group-aria-pressed:border-indigo-600 dark:border-slate-500 dark:group-aria-pressed:border-indigo-400"
+          />
+          <span class="min-w-0">
+            <span class="block font-medium">{option.libelle}</span>
+            <span class="block text-xs text-slate-500 dark:text-slate-400">{option.detail}</span>
+          </span>
+        </button>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  const CLE = 'revinsp.theme';
+  const bouton = document.getElementById('bouton-theme');
+  const menu = document.getElementById('menu-theme');
+  const options = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-choix-theme]'),
+  );
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+  type Choix = 'clair' | 'sombre' | 'systeme';
+
+  function lireChoix(): Choix {
+    try {
+      const brut = localStorage.getItem(CLE);
+      if (brut === 'clair' || brut === 'sombre' || brut === 'systeme') return brut;
+    } catch {
+      /* navigation privée : on retombe sur le défaut */
+    }
+    return 'sombre';
+  }
+
+  /** Traduit le choix en thème effectivement rendu. */
+  function resoudre(choix: Choix): 'clair' | 'sombre' {
+    if (choix === 'systeme') return media.matches ? 'sombre' : 'clair';
+    return choix;
+  }
+
+  function appliquer(choix: Choix, memoriser: boolean) {
+    const rendu = resoudre(choix);
+    const racine = document.documentElement;
+    racine.setAttribute('data-theme', rendu);
+    racine.setAttribute('data-theme-choix', choix);
+    // Les contrôles natifs (ascenseurs, champs de formulaire) suivent aussi.
+    racine.style.colorScheme = rendu === 'sombre' ? 'dark' : 'light';
+
+    for (const option of options) {
+      option.setAttribute('aria-pressed', String(option.dataset.choixTheme === choix));
+    }
+
+    if (memoriser) {
+      try {
+        localStorage.setItem(CLE, choix);
+      } catch {
+        /* navigation privée : le choix ne vaudra que pour cette page */
+      }
+    }
+
+    // Les exercices qui dessinent leurs propres stimuli (canevas, SVG) ont
+    // besoin de connaître le thème : la couleur du fond conditionne la
+    // luminosité et la teinte qu'ils peuvent rendre fidèlement.
+    document.dispatchEvent(new CustomEvent('revinsp:theme', { detail: { theme: rendu } }));
+  }
+
+  function ouvrir(ouvert: boolean) {
+    menu!.hidden = !ouvert;
+    bouton!.setAttribute('aria-expanded', String(ouvert));
+  }
+
+  bouton?.addEventListener('click', (evenement) => {
+    evenement.stopPropagation();
+    ouvrir(Boolean(menu!.hidden));
+  });
+
+  for (const option of options) {
+    option.addEventListener('click', () => {
+      appliquer(option.dataset.choixTheme as Choix, true);
+      ouvrir(false);
+      bouton?.focus();
+    });
+  }
+
+  document.addEventListener('click', (evenement) => {
+    if (!menu!.hidden && !menu!.contains(evenement.target as Node)) ouvrir(false);
+  });
+
+  document.addEventListener('keydown', (evenement) => {
+    if (evenement.key === 'Escape' && !menu!.hidden) {
+      ouvrir(false);
+      bouton?.focus();
+    }
+  });
+
+  // En mode « système », un changement de préférence de l'appareil s'applique
+  // immédiatement, sans rechargement.
+  media.addEventListener('change', () => {
+    if (lireChoix() === 'systeme') appliquer('systeme', false);
+  });
+
+  // Aligne l'état visible des options sur le choix déjà appliqué par le script
+  // d'amorçage du gabarit (qui s'exécute avant le premier rendu).
+  appliquer(lireChoix(), false);
+</script>

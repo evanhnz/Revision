@@ -1,0 +1,387 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Statistiques" actif="statistiques">
+  <h1 class="mb-5 text-2xl font-bold text-slate-900 dark:text-white">Statistiques</h1>
+  <div id="chargement" class="py-20 text-center text-slate-400">Calcul en cours…</div>
+
+  <div id="stats" class="hidden space-y-8">
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-sm text-slate-500 dark:text-slate-400">Temps total</p>
+        <p id="temps-total" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+        <p id="temps-moyen" class="mt-1 text-xs text-slate-400"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-sm text-slate-500 dark:text-slate-400">Révisions de cartes</p>
+        <p id="total-revisions" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+        <p id="detail-cartes" class="mt-1 text-xs text-slate-400"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-sm text-slate-500 dark:text-slate-400">Taux de réussite aux quiz</p>
+        <p id="taux-quiz" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+        <p id="detail-quiz" class="mt-1 text-xs text-slate-400"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <p class="text-sm text-slate-500 dark:text-slate-400">Jours de révision</p>
+        <p id="jours-actifs" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+        <p id="detail-jours" class="mt-1 text-xs text-slate-400"></p>
+      </div>
+    </section>
+
+    <!-- ── Niveau estimé et zone de travail ──────────────────────────── -->
+    <section>
+      <h2 class="mb-1 text-lg font-semibold text-slate-900 dark:text-white">Niveau par matière</h2>
+      <p class="mb-3 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+        Estimé à partir de vos réponses : une note monte quand vous réussissez ce qui était prévu
+        difficile, et descend quand vous manquez ce qui était prévu facile. Elle ne se fige jamais,
+        et n'est affichée qu'une fois assez de réponses accumulées.
+        <a id="lien-reglages-niveau" href="#" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">Choisir ce qui l'alimente →</a>
+      </p>
+      <p
+        id="zone-travail"
+        class="mb-3 hidden rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-slate-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-slate-200"
+      ></p>
+      <div id="niveaux" class="space-y-3"></div>
+    </section>
+
+    <section>
+      <h2 class="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Temps de révision par semaine</h2>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <div id="histogramme" class="flex h-40 items-end gap-2"></div>
+        <p class="mt-3 text-xs text-slate-400">
+          Objectif indicatif : 10 à 15 h par semaine (ligne pointillée à 10 h).
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Par matière</h2>
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <table class="w-full text-sm">
+          <thead class="border-b border-slate-200 text-left text-xs text-slate-500 uppercase dark:border-slate-800 dark:text-slate-400">
+            <tr>
+              <th class="px-4 py-3 font-medium">Matière</th>
+              <th class="px-4 py-3 text-right font-medium">Fiches lues</th>
+              <th class="px-4 py-3 text-right font-medium">Cartes acquises</th>
+              <th class="px-4 py-3 text-right font-medium">Quiz</th>
+              <th class="px-4 py-3 text-right font-medium">Maîtrise</th>
+            </tr>
+          </thead>
+          <tbody id="tableau-matieres" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Échéancier des flashcards</h2>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <div id="echeancier" class="flex h-32 items-end gap-1"></div>
+        <p class="mt-3 text-xs text-slate-400">Nombre de cartes à réviser sur les 30 prochains jours.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Fiches les plus fragiles</h2>
+      <div id="fragiles" class="space-y-2"></div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { construireVue } from '../lib/agregats';
+  import { ajouterJours, jourISO, tousLesJours, tousLesResultatsQuiz, toutesLesCartes } from '../lib/db';
+  import { formaterDuree, lien, pluriel } from '../lib/ui';
+  import { chargerManifeste, MATIERE_CAS_PRATIQUE } from '../lib/contenu';
+  import { comptesParMatiere } from '../lib/journal';
+  import {
+    AMORCES,
+    calibrer,
+    lireReglagesContenu,
+    OBSERVATIONS_MINIMALES,
+    tableauDeNiveaux,
+    zoneDeTravail,
+  } from '../lib/niveau';
+
+  const $ = (id: string) => document.getElementById(id)!;
+
+  async function afficher() {
+    const [vue, jours, cartes, quiz] = await Promise.all([
+      construireVue(),
+      tousLesJours(),
+      toutesLesCartes(),
+      tousLesResultatsQuiz(),
+    ]);
+
+    // --- Indicateurs globaux ---
+    const secondes = jours.reduce((n, j) => n + j.secondes, 0);
+    const joursActifs = jours.filter((j) => j.xp > 0 || j.secondes > 60);
+    $('temps-total').textContent = formaterDuree(secondes);
+    $('temps-moyen').textContent = joursActifs.length
+      ? `${formaterDuree(secondes / joursActifs.length)} par jour travaillé`
+      : 'Aucune session enregistrée';
+
+    const revisions = cartes.reduce((n, c) => n + c.revisions, 0);
+    $('total-revisions').textContent = String(revisions);
+    $('detail-cartes').textContent =
+      `${cartes.filter((c) => c.intervalle >= 21).length} acquise(s) · ${cartes.reduce((n, c) => n + c.oublis, 0)} oubli(s)`;
+
+    const totalQuestions = quiz.reduce((n, q) => n + q.total, 0);
+    const totalBonnes = quiz.reduce((n, q) => n + q.bonnes, 0);
+    $('taux-quiz').textContent = totalQuestions ? `${Math.round((totalBonnes / totalQuestions) * 100)} %` : '—';
+    $('detail-quiz').textContent = totalQuestions
+      ? `${totalBonnes} bonne(s) réponse(s) sur ${totalQuestions}`
+      : 'Aucun quiz passé';
+
+    $('jours-actifs').textContent = String(joursActifs.length);
+    $('detail-jours').textContent = jours.length
+      ? `depuis le ${new Date(jours[0].jour).toLocaleDateString('fr-FR')}`
+      : '';
+
+    // --- Histogramme hebdomadaire (12 semaines) ---
+    const semaines: { libelle: string; secondes: number }[] = [];
+    const aujourdhui = jourISO();
+    for (let i = 11; i >= 0; i--) {
+      const fin = ajouterJours(aujourdhui, -i * 7);
+      const debut = ajouterJours(fin, -6);
+      const total = jours.filter((j) => j.jour >= debut && j.jour <= fin).reduce((n, j) => n + j.secondes, 0);
+      semaines.push({ libelle: new Date(debut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), secondes: total });
+    }
+    const maxSecondes = Math.max(10 * 3600, ...semaines.map((s) => s.secondes));
+    const histogramme = $('histogramme');
+    histogramme.innerHTML = '';
+    for (const semaine of semaines) {
+      const heures = semaine.secondes / 3600;
+      const colonne = document.createElement('div');
+      colonne.className = 'flex flex-1 flex-col items-center justify-end gap-1';
+      colonne.title = `Semaine du ${semaine.libelle} — ${formaterDuree(semaine.secondes)}`;
+      const barre = document.createElement('div');
+      barre.className = `w-full rounded-t ${heures >= 10 ? 'bg-emerald-500' : heures >= 5 ? 'bg-indigo-500' : 'bg-indigo-300 dark:bg-indigo-800'}`;
+      barre.style.height = `${Math.max(2, (semaine.secondes / maxSecondes) * 100)}%`;
+      const etiquette = document.createElement('span');
+      etiquette.className = 'text-[10px] text-slate-400';
+      etiquette.textContent = semaine.libelle;
+      colonne.append(barre, etiquette);
+      histogramme.appendChild(colonne);
+    }
+
+    // --- Tableau par matière ---
+    const corps = $('tableau-matieres');
+    corps.innerHTML = '';
+    for (const matiere of vue.matieres) {
+      const cartesMatiere = cartes.filter((c) => c.matiere === matiere.nom);
+      const quizMatiere = quiz.filter((q) => q.matiere === matiere.nom);
+      const questionsMatiere = quizMatiere.reduce((n, q) => n + q.total, 0);
+      const bonnesMatiere = quizMatiere.reduce((n, q) => n + q.bonnes, 0);
+      const pourcent = Math.round(matiere.maitrise * 100);
+
+      const ligne = document.createElement('tr');
+      ligne.innerHTML = `
+        <td class="px-4 py-3 font-medium text-slate-800 dark:text-slate-100" data-nom></td>
+        <td class="px-4 py-3 text-right text-slate-600 dark:text-slate-300">${matiere.fichesLues}/${matiere.fiches.length}</td>
+        <td class="px-4 py-3 text-right text-slate-600 dark:text-slate-300">${cartesMatiere.filter((c) => c.intervalle >= 21).length}/${matiere.fiches.reduce((n, f) => n + f.cartesTotal, 0)}</td>
+        <td class="px-4 py-3 text-right text-slate-600 dark:text-slate-300">${questionsMatiere ? `${Math.round((bonnesMatiere / questionsMatiere) * 100)} %` : '—'}</td>
+        <td class="px-4 py-3 text-right">
+          <span class="font-semibold ${pourcent >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}">${pourcent} %</span>
+        </td>`;
+      ligne.querySelector('[data-nom]')!.textContent = matiere.nom;
+      corps.appendChild(ligne);
+    }
+
+    // --- Échéancier des 30 prochains jours ---
+    const echeancier = $('echeancier');
+    echeancier.innerHTML = '';
+    const compteParJour: number[] = Array.from({ length: 30 }, () => 0);
+    for (const carte of cartes) {
+      const ecart = Math.round(
+        (new Date(`${carte.du}T12:00:00`).getTime() - new Date(`${aujourdhui}T12:00:00`).getTime()) / 86400000,
+      );
+      if (ecart < 0) compteParJour[0] += 1;
+      else if (ecart < 30) compteParJour[ecart] += 1;
+    }
+    const maxJour = Math.max(1, ...compteParJour);
+    compteParJour.forEach((nombre, i) => {
+      const colonne = document.createElement('div');
+      colonne.className = 'flex flex-1 flex-col justify-end';
+      colonne.title = `${ajouterJours(aujourdhui, i)} — ${pluriel(nombre, 'carte')}`;
+      const barre = document.createElement('div');
+      barre.className = `w-full rounded-t ${i === 0 ? 'bg-amber-500' : 'bg-indigo-400 dark:bg-indigo-600'}`;
+      barre.style.height = `${Math.max(2, (nombre / maxJour) * 100)}%`;
+      colonne.appendChild(barre);
+      echeancier.appendChild(colonne);
+    });
+
+    // --- Fiches les plus fragiles (déjà travaillées mais peu maîtrisées) ---
+    const fragiles = vue.fiches
+      .filter((f) => f.lu || f.cartesVues > 0 || f.meilleurQuiz !== null)
+      .sort((a, b) => a.maitrise - b.maitrise)
+      .slice(0, 8);
+    const zone = $('fragiles');
+    zone.innerHTML = '';
+    if (!fragiles.length) {
+      zone.innerHTML = '<p class="text-sm text-slate-500">Commencez à réviser pour voir apparaître vos points faibles.</p>';
+    }
+    for (const f of fragiles) {
+      const pourcent = Math.round(f.maitrise * 100);
+      const carte = document.createElement('a');
+      carte.href = `${lien('/fiche/')}?id=${encodeURIComponent(f.fiche.id)}`;
+      carte.className =
+        'flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-indigo-300 dark:border-slate-800 dark:bg-slate-900';
+      carte.innerHTML = `
+        <div class="min-w-0 flex-1">
+          <p class="truncate font-medium text-slate-900 dark:text-white" data-titre></p>
+          <p class="text-xs text-slate-400" data-matiere></p>
+        </div>
+        <span class="shrink-0 text-sm font-semibold text-amber-600 dark:text-amber-400">${pourcent} %</span>`;
+      carte.querySelector('[data-titre]')!.textContent = f.fiche.titre;
+      carte.querySelector('[data-matiere]')!.textContent = f.fiche.matiere;
+      zone.appendChild(carte);
+    }
+
+    await peindreNiveaux();
+
+    $('chargement').classList.add('hidden');
+    $('stats').classList.remove('hidden');
+  }
+
+  /**
+   * Le tableau des niveaux.
+   *
+   * Toutes les matières du contenu y figurent, même sans données : une matière
+   * absente du tableau se lirait comme une matière sans importance, alors qu'elle
+   * n'a simplement pas encore été travaillée. C'est aussi là qu'on propose
+   * l'auto-estimation de départ, puisque c'est le seul moment où elle sert.
+   */
+  async function peindreNiveaux() {
+    $('lien-reglages-niveau').setAttribute('href', `${lien('/progression/')}#sources-niveau`);
+
+    const [manifeste, tableau, journal, zone, reglagesContenu] = await Promise.all([
+      chargerManifeste(),
+      tableauDeNiveaux(),
+      comptesParMatiere(),
+      zoneDeTravail(),
+      lireReglagesContenu(),
+    ]);
+
+    const banniere = $('zone-travail');
+    if (zone) {
+      banniere.textContent =
+        `Zone de travail actuelle : ${zone.matiere} — ${zone.libelle}. ` +
+        'C’est, parmi les catégories assez travaillées pour qu’on puisse le dire, celui où votre ' +
+        'note est la plus basse.';
+      banniere.classList.remove('hidden');
+    } else {
+      banniere.classList.add('hidden');
+    }
+
+    const parClef = new Map(tableau.map((t) => [t.matiere.matiere, t]));
+    const erreursParMatiere = new Map(journal.map((m) => [m.matiere, m]));
+    const zoneListe = $('niveaux');
+    zoneListe.replaceChildren();
+
+    for (const matiere of manifeste.matieres) {
+      const donnees = parClef.get(matiere.nom);
+      const bloc = document.createElement('details');
+      bloc.className =
+        'rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900';
+
+      const resume = document.createElement('summary');
+      resume.className = 'flex cursor-pointer flex-wrap items-baseline justify-between gap-2';
+      const nom = document.createElement('span');
+      nom.className = 'font-semibold text-slate-900 dark:text-white';
+      nom.textContent = matiere.nom;
+      const valeur = document.createElement('span');
+      valeur.className = 'text-sm text-slate-500 dark:text-slate-400';
+      const niveau = donnees?.matiere;
+      valeur.textContent = !niveau
+        ? 'pas encore de données'
+        : niveau.fiable
+          ? `${niveau.note} · ${pluriel(niveau.observations, 'réponse', 'réponses')}`
+          : niveau.calibree
+            ? 'estimation de départ, à confirmer'
+            : `pas encore assez de données (${niveau.observations}/${OBSERVATIONS_MINIMALES})`;
+      resume.append(nom, valeur);
+      bloc.appendChild(resume);
+
+      const corps = document.createElement('div');
+      corps.className = 'mt-3 space-y-2 text-sm';
+      const ecartee = !reglagesContenu.casPratique && matiere.nom === MATIERE_CAS_PRATIQUE;
+
+      const erreurs = erreursParMatiere.get(matiere.nom);
+      if (erreurs) {
+        const ligne = document.createElement('p');
+        ligne.className = 'text-amber-700 dark:text-amber-400';
+        ligne.textContent = `${pluriel(erreurs.total, 'erreur ouverte', 'erreurs ouvertes')} au journal.`;
+        corps.appendChild(ligne);
+      }
+
+      const parFascicule = new Map(
+        (donnees?.fascicules ?? []).map((f) => [f.libelle, f]),
+      );
+      const erreursFascicule = new Map((erreurs?.fascicules ?? []).map((f) => [f.nom, f.total]));
+      for (const fascicule of matiere.fascicules) {
+        const ligne = document.createElement('p');
+        ligne.className = 'flex items-baseline justify-between gap-3';
+        const titre = document.createElement('span');
+        titre.className = 'texte-secable text-slate-700 dark:text-slate-200';
+        titre.textContent = fascicule.nom;
+        const detail = document.createElement('span');
+        detail.className = 'shrink-0 text-slate-500 dark:text-slate-400';
+        const n = parFascicule.get(fascicule.nom);
+        const ouvertes = erreursFascicule.get(fascicule.nom) ?? 0;
+        detail.textContent =
+          (!n
+            ? 'pas encore de données'
+            : n.fiable
+              ? String(n.note)
+              : `pas encore assez de données (${n.observations}/${OBSERVATIONS_MINIMALES})`) +
+          (ouvertes ? ` · ${ouvertes} erreur(s)` : '');
+        ligne.append(titre, detail);
+        corps.appendChild(ligne);
+      }
+
+      // Auto-estimation : proposée seulement tant qu'aucune réponse réelle n'a
+      // été enregistrée, puisque les réponses en savent plus — et seulement
+      // pour les matières dont l'estimation tient compte. Proposer de se situer
+      // en cas pratique donnerait une note que rien ne viendrait jamais
+      // confirmer, puisque aucune réponse de cette matière n'est comptée.
+      if (ecartee) {
+        const note = document.createElement('p');
+        note.className = 'mt-2 text-xs text-slate-500 dark:text-slate-400';
+        note.textContent =
+          "Cette matière est écartée de l'estimation de niveau : elle s'évalue sur une note " +
+          'rédigée, pas sur des questions fermées. Réglages dans Progression.';
+        corps.appendChild(note);
+      } else if (!niveau || niveau.observations === 0) {
+        const invite = document.createElement('div');
+        invite.className = 'mt-2 flex flex-wrap items-center gap-2';
+        const texte = document.createElement('span');
+        texte.className = 'text-xs text-slate-500 dark:text-slate-400';
+        texte.textContent = 'Pour démarrer, situez-vous (facultatif) :';
+        invite.appendChild(texte);
+        for (const amorce of AMORCES) {
+          const bouton = document.createElement('button');
+          bouton.type = 'button';
+          bouton.className =
+            'min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-medium transition ' +
+            'hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800';
+          bouton.textContent = amorce.libelle;
+          bouton.addEventListener('click', () => {
+            void calibrer(matiere.nom, amorce.note).then(() => peindreNiveaux());
+          });
+          invite.appendChild(bouton);
+        }
+        corps.appendChild(invite);
+      }
+
+      bloc.appendChild(corps);
+      zoneListe.appendChild(bloc);
+    }
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(afficher);
+</script>

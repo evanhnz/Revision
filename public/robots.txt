@@ -1,0 +1,3 @@
+# Aucun moteur de recherche ne doit indexer ce site.
+User-agent: *
+Disallow: /

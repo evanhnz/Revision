@@ -1,0 +1,74 @@
+---
+/**
+ * Exercice Relational Reasoning.
+ *
+ * Il remplace Syllogismes et, contrairement à lui, vit dans le site : pas
+ * d'iframe, pas de sous-site statique atteignable par son adresse, une seule
+ * chaîne de build et une seule base de progression.
+ */
+import Base from '../../layouts/Base.astro';
+import RelationalReasoning from '../../features/relational-reasoning/composants/RelationalReasoning.svelte';
+---
+
+<Base titre="Relational Reasoning" actif="cog-training">
+  <header class="mb-5">
+    <a
+      id="retour"
+      href="../"
+      class="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+      >← Cog-Training</a
+    >
+    <h1 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">Relational Reasoning</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+      Un réseau de relations vous est montré sans que la règle qui le régit soit nommée : à vous de
+      l'inférer, puis de l'appliquer à un cas nouveau. La difficulté ne tient pas au vocabulaire
+      mais à la structure — un ordre, une équivalence, une opposition ne se comportent pas de la
+      même façon, et c'est cette différence que l'exercice travaille. Tous les items sont engendrés
+      à la volée : il n'y a pas de banque de questions, donc rien à épuiser ni à retenir par cœur.
+    </p>
+
+    <details class="mt-3 max-w-3xl text-sm">
+      <summary class="cursor-pointer text-indigo-600 hover:underline dark:text-indigo-400">
+        Ce que cet exercice fait, et ce qu'il ne promet pas
+      </summary>
+      <div class="mt-2 space-y-2 text-slate-500 dark:text-slate-400">
+        <p>
+          Le fil conducteur de la rubrique est la notion de <strong>cadre relationnel</strong> : ce
+          qui est entraîné n'est pas un contenu mais la capacité à traiter une relation elle-même
+          comme un objet — à la reconnaître sous d'autres noms, à la transporter d'un couple à un
+          autre, à la composer avec une deuxième.
+        </p>
+        <p>
+          Il faut dire aussi ce qui n'est pas établi. <strong>Rien ne garantit que s'entraîner ici
+          améliore quoi que ce soit ailleurs</strong> : le transfert d'un entraînement cognitif vers
+          des tâches non entraînées est une question ouverte, et disputée. C'est un exercice
+          difficile et régulier, pas une promesse d'amélioration générale.
+        </p>
+      </div>
+    </details>
+  </header>
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Chargement de l'exercice…</div>
+
+  <div id="exercice" class="hidden">
+    <!--
+      client:only : le moteur et ses solveurs ne sont chargés que sur cette
+      page, jamais au chargement des autres pages du site.
+    -->
+    <RelationalReasoning client:only="svelte" />
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { lien } from '../../lib/ui';
+
+  document.getElementById('retour')!.setAttribute('href', lien('/cog-training/'));
+
+  // L'exercice ne contient aucune donnée du concours et n'est donc pas chiffré,
+  // mais il reste derrière l'écran de connexion comme le reste du site.
+  auDeverrouillage(() => {
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('exercice')!.classList.remove('hidden');
+  });
+</script>

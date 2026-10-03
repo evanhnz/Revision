@@ -1,0 +1,548 @@
+---
+import Base from '../layouts/Base.astro';
+import Section from '../components/Section.astro';
+---
+
+<Base titre="Tableau de bord" actif="accueil">
+  <div id="chargement" class="py-20 text-center text-slate-400">Déchiffrement du contenu…</div>
+
+  <div id="tableau" class="hidden space-y-6">
+    <!-- Bandeau niveau / XP / série -->
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-5 text-white shadow-sm">
+        <p class="etiquette opacity-80">Niveau</p>
+        <p class="mt-1 flex items-baseline gap-2">
+          <span id="niveau" class="text-3xl font-bold">—</span>
+          <span id="xp-total" class="text-sm opacity-80"></span>
+        </p>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/25">
+          <div id="barre-niveau" class="h-full rounded-full bg-white transition-all duration-500" style="width:0%"></div>
+        </div>
+        <p id="xp-restant" class="mt-2 text-xs opacity-80"></p>
+      </div>
+
+      <div id="carte-streak" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <p class="etiquette text-slate-500 dark:text-slate-400">Série en cours</p>
+        <p class="mt-1 text-3xl font-bold text-slate-900 dark:text-white">
+          <span id="streak">—</span> <span class="text-xl">🔥</span>
+        </p>
+        <p id="streak-detail" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <!--
+          « À revoir », et non « à réviser » : ce compteur ne montre que les
+          cartes déjà apprises dont l'échéance est atteinte. Il comptait aussi
+          les cartes inédites, ce qui affichait les milliers de cartes du site
+          comme un retard du jour — un nombre que personne ne peut tenir, et
+          qui ne descend jamais. Les cartes neuves s'apprennent au rythme
+          qu'on choisit, depuis la session elle-même.
+        -->
+        <p class="etiquette text-slate-500 dark:text-slate-400">À revoir aujourd'hui</p>
+        <p class="mt-1 text-3xl font-bold text-slate-900 dark:text-white" id="dues">—</p>
+        <a id="lien-reviser" href="#" class="mt-2 inline-block text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+          Lancer la session →
+        </a>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <p class="etiquette text-slate-500 dark:text-slate-400">Maîtrise globale</p>
+        <p class="mt-1 text-3xl font-bold text-slate-900 dark:text-white" id="maitrise">—</p>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div id="barre-maitrise" class="h-full rounded-full bg-emerald-500 transition-all duration-500" style="width:0%"></div>
+        </div>
+        <p id="temps-semaine" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
+      </div>
+    </section>
+
+    <!-- Journal d'erreurs : une ligne, et seulement quand il y a quelque chose
+         à reprendre. Le compteur est un signal, pas un reproche permanent. -->
+    <section
+      id="bloc-journal-accueil"
+      class="hidden rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30"
+    >
+      <p class="text-sm text-slate-700 dark:text-slate-200">
+        <span id="journal-compte" class="font-semibold"></span>
+        <span class="text-slate-500 dark:text-slate-400">
+          — servies d'office au début de la prochaine séance de leur matière.
+        </span>
+        <a
+          id="lien-journal"
+          href="#"
+          class="ml-1 font-medium text-amber-800 hover:underline dark:text-amber-300"
+        >Voir le journal →</a>
+      </p>
+    </section>
+
+    <!--
+      Prétest de la fiche du jour. Sa place est ici : c'est le moment où l'on
+      décide de se mettre au travail, donc juste avant la première lecture — et
+      l'effet de prétest n'existe qu'à cet instant-là.
+    -->
+    <section
+      id="bloc-pretest"
+      class="hidden rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/30"
+    >
+      <p class="etiquette text-indigo-700 dark:text-indigo-300">Avant de lire</p>
+      <p class="mt-1 text-sm text-slate-700 dark:text-slate-200">
+        <span id="pretest-titre" class="font-semibold"></span>
+        <span class="text-slate-500 dark:text-slate-400">
+          — quelques questions avant d'ouvrir la fiche. Se tromper est normal, et c'est même ce qui
+          rend la lecture plus efficace : rien n'est compté.
+        </span>
+      </p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button
+          id="pretest-lancer"
+          class="min-h-11 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+        >
+          Commencer le prétest
+        </button>
+        <a
+          id="pretest-fiche"
+          href="#"
+          class="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+        >Ouvrir la fiche directement</a>
+      </div>
+      <div id="pretest-hote" class="mt-4 hidden"></div>
+    </section>
+
+    <!-- Zone de travail : un repère lisible plutôt qu'un chiffre isolé. -->
+    <section
+      id="bloc-zone"
+      class="hidden rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/30"
+    >
+      <p class="text-sm text-slate-700 dark:text-slate-200">
+        <span class="font-semibold">Zone de travail actuelle :</span>
+        <span id="zone-libelle"></span>
+        <a
+          id="lien-niveaux"
+          href="#"
+          class="ml-1 font-medium text-indigo-700 hover:underline dark:text-indigo-300"
+        >Voir les niveaux →</a>
+      </p>
+    </section>
+
+    <!-- Séance du jour : proposée automatiquement par la rotation.
+         C'est la <section> qui porte « hidden », et non le lien : un <a> dont
+         on retire « hidden » repasserait en « display: inline », et la carte
+         perdrait son fond, sa bordure et ses marges intérieures. -->
+    <section id="bloc-seance" class="hidden">
+      <a
+        id="carte-seance"
+        href="planification/"
+        class="block rounded-xl border border-indigo-200 bg-indigo-50 p-5 transition hover:border-indigo-400 dark:border-indigo-800 dark:bg-indigo-950/40 dark:hover:border-indigo-600"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p id="seance-etiquette" class="etiquette text-indigo-600 dark:text-indigo-400"></p>
+            <p id="seance-titre" class="mt-1 text-lg font-bold text-slate-900 dark:text-white"></p>
+            <p id="seance-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300"></p>
+          </div>
+          <span
+            id="seance-badge"
+            class="hidden shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300"
+          >
+            Révision du mois
+          </span>
+        </div>
+      </a>
+    </section>
+
+    <!-- Relance si la série est en péril -->
+    <div id="alerte-streak" class="hidden rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"></div>
+
+    <!-- Progression par matière -->
+    <Section
+      titre="Progression par matière"
+      lienLibelle="Voir tout"
+      lienHref="bibliotheque/"
+      lienId="lien-biblio"
+      grilleId="matieres"
+      grille="grid gap-4 sm:grid-cols-2"
+    />
+
+    <!-- Horizon pluriannuel : la série de jours dit la semaine en cours, pas
+         la profondeur d'un programme qui s'étale sur plusieurs années. -->
+    <Section titre="Programme pluriannuel" grille="">
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <p class="etiquette text-indigo-600 dark:text-indigo-400">Depuis le début</p>
+        <p id="horizon-duree" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+        <p id="horizon-debut" class="mt-1 text-sm text-slate-500 dark:text-slate-400"></p>
+
+        <div id="horizon-jalon" class="mt-4 hidden">
+          <div class="flex flex-wrap items-baseline justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span id="horizon-jalon-libelle"></span>
+            <span id="horizon-jalon-restant"></span>
+          </div>
+          <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+            <div id="horizon-jalon-barre" class="h-full rounded-full bg-indigo-600 transition-all duration-500" style="width:0%"></div>
+          </div>
+        </div>
+
+        <dl id="horizon-chiffres" class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4"></dl>
+
+        <div id="horizon-annees" class="mt-5 space-y-2"></div>
+      </div>
+    </Section>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <!-- Activité des 8 dernières semaines -->
+      <Section titre="Régularité" grille="">
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div id="calendrier" class="flex gap-1 overflow-x-auto"></div>
+          <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Huit dernières semaines — l'intensité de la couleur reflète l'XP gagné dans la journée.
+          </p>
+        </div>
+      </Section>
+
+      <!-- Badges -->
+      <Section titre="Succès" grilleId="badges" grille="grid grid-cols-2 gap-2 sm:grid-cols-3" />
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { construireVue } from '../lib/agregats';
+  import { lireProfil, tousLesJours, jourISO, ajouterJours } from '../lib/db';
+  import { BADGES, calculerNiveau, statutStreak, vueLongTerme } from '../lib/gamification';
+  import { formaterDuree, lien, pluriel } from '../lib/ui';
+  import { chargerManifeste } from '../lib/contenu';
+  import {
+    estRepos,
+    fichesDuTheme,
+    historique,
+    seanceDuJour,
+    theme as themeParId,
+  } from '../lib/planification';
+  import { chargerFiche } from '../lib/contenu';
+  import { aProposer, montrer as montrerPretest } from '../lib/pretest';
+  import { entreesOuvertes } from '../lib/journal';
+  import { zoneDeTravail } from '../lib/niveau';
+
+  const dateLongue = new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  async function afficher() {
+    const [vue, profil, streak, jours] = await Promise.all([
+      construireVue(),
+      lireProfil(),
+      statutStreak(),
+      tousLesJours(),
+    ]);
+
+    // --- Niveau et XP ---
+    const niveau = calculerNiveau(profil.xp);
+    document.getElementById('niveau')!.textContent = String(niveau.niveau);
+    document.getElementById('xp-total')!.textContent = `${profil.xp} XP au total`;
+    document.getElementById('barre-niveau')!.style.width = `${Math.round(niveau.progression * 100)}%`;
+    document.getElementById('xp-restant')!.textContent =
+      `${niveau.xpRequisNiveau - niveau.xpDansNiveau} XP avant le niveau ${niveau.niveau + 1}`;
+
+    // --- Série ---
+    document.getElementById('streak')!.textContent = String(streak.courante);
+    document.getElementById('streak-detail')!.textContent = streak.record
+      ? `Record : ${pluriel(streak.record, 'jour')}`
+      : 'Révisez aujourd\'hui pour démarrer la série.';
+
+    const alerte = document.getElementById('alerte-streak')!;
+    if (streak.enPeril) {
+      alerte.textContent = `⏳ Votre série de ${pluriel(streak.courante, 'jour')} s'arrête ce soir si vous ne révisez pas. Quelques cartes suffisent.`;
+      alerte.classList.remove('hidden');
+    } else if (streak.rompue) {
+      alerte.textContent = `La série s'est interrompue (record : ${pluriel(streak.record, 'jour')}). Une session aujourd'hui en relance une nouvelle.`;
+      alerte.classList.remove('hidden');
+    }
+    if (streak.etudieAujourdhui) {
+      document.getElementById('carte-streak')!.classList.add('ring-2', 'ring-emerald-400');
+    }
+
+    // --- File du jour et maîtrise ---
+    document.getElementById('dues')!.textContent = String(vue.cartesARevoir);
+
+    // Zone de travail : le fascicule le plus bas parmi ceux qu'on connaît assez
+    // pour l'affirmer. Rien ne s'affiche tant qu'aucun ne l'est.
+    const zone = await zoneDeTravail();
+    if (zone) {
+      document.getElementById('zone-libelle')!.textContent = `${zone.matiere} — ${zone.libelle}`;
+      document.getElementById('lien-niveaux')!.setAttribute('href', lien('/statistiques/'));
+      document.getElementById('bloc-zone')!.classList.remove('hidden');
+    }
+
+    // Journal d'erreurs.
+    const ouvertes = await entreesOuvertes();
+    if (ouvertes.length) {
+      document.getElementById('journal-compte')!.textContent = pluriel(
+        ouvertes.length,
+        'erreur à reprendre',
+        'erreurs à reprendre',
+      );
+      document.getElementById('lien-journal')!.setAttribute('href', lien('/journal/'));
+      document.getElementById('bloc-journal-accueil')!.classList.remove('hidden');
+    }
+    document.getElementById('lien-reviser')!.setAttribute('href', lien('/flashcards/'));
+    document.getElementById('lien-biblio')!.setAttribute('href', lien('/bibliotheque/'));
+    document.getElementById('maitrise')!.textContent = `${Math.round(vue.maitriseGlobale * 100)} %`;
+    document.getElementById('barre-maitrise')!.style.width = `${Math.round(vue.maitriseGlobale * 100)}%`;
+
+    const debutSemaine = ajouterJours(jourISO(), -6);
+    const secondesSemaine = jours.filter((j) => j.jour >= debutSemaine).reduce((n, j) => n + j.secondes, 0);
+    document.getElementById('temps-semaine')!.textContent =
+      `${formaterDuree(secondesSemaine)} révisées ces 7 derniers jours`;
+
+    // --- Matières ---
+    const conteneur = document.getElementById('matieres')!;
+    conteneur.innerHTML = '';
+    for (const matiere of vue.matieres) {
+      const pourcent = Math.round(matiere.maitrise * 100);
+      // Étiquette de catégorie au-dessus du titre : elle dit où en est la
+      // matière, ce qu'un pourcentage seul ne raconte pas d'un coup d'œil.
+      const etat =
+        pourcent === 0
+          ? { libelle: 'À découvrir', classe: 'text-slate-500 dark:text-slate-400' }
+          : pourcent >= 80
+            ? { libelle: 'Consolidé', classe: 'text-emerald-700 dark:text-emerald-300' }
+            : { libelle: 'En cours', classe: 'text-indigo-700 dark:text-indigo-300' };
+
+      const carte = document.createElement('a');
+      carte.href = `${lien('/bibliotheque/')}?matiere=${encodeURIComponent(matiere.nom)}`;
+      carte.className =
+        'block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-300 hover:shadow dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700';
+      carte.innerHTML = `
+        <div class="flex items-baseline justify-between gap-3">
+          <p class="etiquette ${etat.classe}">${etat.libelle}</p>
+          <span class="shrink-0 text-sm font-semibold text-slate-500 dark:text-slate-400">${pourcent} %</span>
+        </div>
+        <p class="mt-1.5 font-semibold text-slate-900 dark:text-white"></p>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div class="h-full rounded-full bg-indigo-600 transition-all duration-500" style="width:${pourcent}%"></div>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          ${matiere.fichesLues}/${matiere.fiches.length} fiche(s) lue(s)${matiere.cartesARevoir ? ` · ${matiere.cartesARevoir} carte(s) à revoir` : ''}
+        </p>`;
+      carte.querySelectorAll('p')[1]!.textContent = matiere.nom;
+      conteneur.appendChild(carte);
+    }
+    if (!vue.matieres.length) {
+      conteneur.innerHTML =
+        '<p class="text-sm text-slate-500">Aucun contenu trouvé. Déposez vos fiches dans « content/ » puis relancez le build.</p>';
+    }
+
+    // --- Calendrier de régularité (8 semaines) ---
+    const parJour = new Map(jours.map((j) => [j.jour, j]));
+    const calendrier = document.getElementById('calendrier')!;
+    calendrier.innerHTML = '';
+    const aujourdhui = jourISO();
+    for (let semaine = 7; semaine >= 0; semaine--) {
+      const colonne = document.createElement('div');
+      colonne.className = 'flex flex-col gap-1';
+      for (let jour = 6; jour >= 0; jour--) {
+        const date = ajouterJours(aujourdhui, -(semaine * 7 + jour));
+        const xp = parJour.get(date)?.xp ?? 0;
+        const intensite = xp === 0 ? 0 : xp < 20 ? 1 : xp < 60 ? 2 : xp < 120 ? 3 : 4;
+        const couleurs = [
+          'bg-slate-100 dark:bg-slate-800',
+          'bg-emerald-200 dark:bg-emerald-900',
+          'bg-emerald-300 dark:bg-emerald-700',
+          'bg-emerald-500 dark:bg-emerald-600',
+          'bg-emerald-600 dark:bg-emerald-400',
+        ];
+        const case_ = document.createElement('div');
+        case_.className = `h-3.5 w-3.5 rounded-sm ${couleurs[intensite]}`;
+        case_.title = `${date} — ${xp} XP`;
+        colonne.appendChild(case_);
+      }
+      calendrier.appendChild(colonne);
+    }
+
+    // --- Badges ---
+    const obtenus = new Set(profil.badges);
+    const zoneBadges = document.getElementById('badges')!;
+    zoneBadges.innerHTML = '';
+    for (const badge of BADGES) {
+      const acquis = obtenus.has(badge.id);
+      const element = document.createElement('div');
+      element.className = acquis
+        ? 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-center dark:border-amber-800 dark:bg-amber-950/40'
+        : 'rounded-xl border border-slate-200 bg-white p-3 text-center opacity-50 dark:border-slate-800 dark:bg-slate-900';
+      element.title = badge.description;
+      element.innerHTML = `<div class="text-2xl">${acquis ? badge.icone : '🔒'}</div><p class="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300"></p>`;
+      element.querySelector('p')!.textContent = badge.nom;
+      zoneBadges.appendChild(element);
+    }
+
+    // --- Horizon pluriannuel ---
+    await afficherHorizon();
+
+    // --- Séance du jour ---
+    await afficherSeanceDuJour();
+
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('tableau')!.classList.remove('hidden');
+  }
+
+  /**
+   * Rappel de la matière du jour, proposée par la rotation hebdomadaire.
+   * Le détail de la séance vit sur la page « Planification » : on se contente
+   * ici d'annoncer ce qui est prévu et d'y conduire.
+   */
+  /**
+   * Situe la progression dans le programme pluriannuel : ancienneté, prochain
+   * jalon de durée, assiduité et bilan par année de préparation.
+   */
+  async function afficherHorizon() {
+    const horizon = await vueLongTerme();
+    const $h = (id: string) => document.getElementById(id)!;
+
+    if (!horizon.debut) {
+      $h('horizon-duree').textContent = 'Le programme commence aujourd\'hui';
+      $h('horizon-debut').textContent =
+        'Dès la première séance, cette section suivra votre préparation année par année.';
+      return;
+    }
+
+    const mois = horizon.moisDepuisDebut;
+    const annees = Math.floor(mois / 12);
+    $h('horizon-duree').textContent =
+      annees >= 1
+        ? `${pluriel(annees, 'an')} et ${pluriel(mois - annees * 12, 'mois', 'mois')} de révision`
+        : mois >= 1
+          ? `${pluriel(mois, 'mois', 'mois')} de révision`
+          : `${pluriel(horizon.joursDepuisDebut, 'jour')} de révision`;
+    $h('horizon-debut').textContent =
+      `Première journée enregistrée le ${dateLongue.format(new Date(`${horizon.debut}T12:00:00`))}.`;
+
+    const jalon = horizon.prochainJalon;
+    if (jalon) {
+      $h('horizon-jalon').classList.remove('hidden');
+      $h('horizon-jalon-libelle').textContent = `Prochain jalon : ${jalon.libelle}`;
+      $h('horizon-jalon-restant').textContent = `encore ${pluriel(jalon.restant, 'jour')}`;
+      $h('horizon-jalon-barre').style.width =
+        `${Math.round((horizon.joursDepuisDebut / jalon.jours) * 100)}%`;
+    }
+
+    const chiffres: [string, string][] = [
+      ['Jours travaillés', String(horizon.joursEtudies)],
+      ['Assiduité', `${Math.round(horizon.assiduite * 100)} %`],
+      ['Temps cumulé', formaterDuree(horizon.secondesTotales)],
+      ['Séances tenues', String(horizon.seancesTerminees)],
+    ];
+    const zone = $h('horizon-chiffres');
+    zone.innerHTML = '';
+    for (const [libelle, valeur] of chiffres) {
+      const dt = document.createElement('dt');
+      dt.className = 'etiquette text-slate-500 dark:text-slate-400';
+      dt.textContent = libelle;
+      const dd = document.createElement('dd');
+      dd.className = 'mt-0.5 text-lg font-bold text-slate-900 dark:text-white';
+      dd.textContent = valeur;
+      const bloc = document.createElement('div');
+      bloc.append(dt, dd);
+      zone.appendChild(bloc);
+    }
+
+    // Années de préparation glissantes : elles partent de la première
+    // journée enregistrée, pas du 1er janvier.
+    const liste = $h('horizon-annees');
+    liste.innerHTML = '';
+    for (const annee of [...horizon.annees].reverse()) {
+      const ligne = document.createElement('div');
+      ligne.className = annee.enCours
+        ? 'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm dark:border-indigo-800 dark:bg-indigo-950/40'
+        : 'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-800';
+      const titre = document.createElement('span');
+      titre.className = 'font-semibold text-slate-900 dark:text-white';
+      titre.textContent = `Année ${annee.rang}${annee.enCours ? ' (en cours)' : ''}`;
+      const detail = document.createElement('span');
+      detail.className = 'text-xs text-slate-600 dark:text-slate-300';
+      detail.textContent =
+        `${pluriel(annee.joursEtudies, 'jour')} · ${formaterDuree(annee.secondes)} · ${pluriel(annee.seances, 'séance')} · ${annee.xp} XP`;
+      ligne.append(titre, detail);
+      liste.appendChild(ligne);
+    }
+  }
+
+  async function afficherSeanceDuJour() {
+    const seance = await seanceDuJour();
+    const sujet = themeParId(seance.theme);
+    if (!sujet) return;
+
+    const passees = await historique(seance.theme);
+    const terminee = seance.statut === 'terminee';
+    const nombreRappels = seance.etendue ? Math.min(4, passees.length) : Math.min(2, passees.length);
+
+    const repos = estRepos(seance.theme);
+    document.getElementById('seance-etiquette')!.textContent = repos
+      ? 'Aucune révision prévue'
+      : terminee
+        ? 'Séance du jour — terminée'
+        : 'Séance du jour';
+    document.getElementById('seance-titre')!.textContent = `${sujet.icone} ${sujet.nom}`;
+    document.getElementById('seance-detail')!.textContent = repos
+      ? "Journée de repos : rien n'est programmé, et votre série reste intacte."
+      : terminee
+      ? 'C\'est fait pour aujourd\'hui. Vous pouvez relire vos notes de séance.'
+      : nombreRappels === 0
+        ? 'Première séance sur cette matière : directement le contenu du jour, puis la note de séance.'
+        : `Restitution à blanc ${
+            nombreRappels === 1 ? 'de la séance précédente' : `des ${nombreRappels} séances précédentes`
+          }, puis contenu du jour et note de séance.`;
+    // Un <span> réaffiché redevient « inline » : on bascule explicitement vers
+    // « inline-flex », sans quoi la pastille perdrait ses marges verticales.
+    const badge = document.getElementById('seance-badge')!;
+    badge.classList.toggle('hidden', !seance.etendue);
+    badge.classList.toggle('inline-flex', seance.etendue);
+
+    document.getElementById('carte-seance')!.setAttribute('href', lien('/planification/'));
+    document.getElementById('bloc-seance')!.classList.remove('hidden');
+
+    if (!terminee && !repos) await proposerPretest(seance.theme);
+  }
+
+  /**
+   * Propose le prétest d'une fiche du jour, si l'une d'elles en a un qu'elle
+   * n'a pas encore reçu.
+   *
+   * On ne déchiffre que les fiches dont le manifeste annonce un prétest, et on
+   * s'arrête à la première candidate : ouvrir toute une matière pour savoir
+   * laquelle proposer coûterait bien plus que ce que la proposition rapporte.
+   */
+  async function proposerPretest(themeId: string) {
+    const manifeste = await chargerManifeste();
+    const candidates = fichesDuTheme(manifeste, themeId).filter((f) => f.aPretest);
+    for (const legere of candidates.slice(0, 8)) {
+      const complete = await chargerFiche(legere.id).catch(() => null);
+      if (!complete || !(await aProposer(complete))) continue;
+
+      document.getElementById('pretest-titre')!.textContent = complete.titre;
+      document
+        .getElementById('pretest-fiche')!
+        .setAttribute('href', `${lien('/fiche/')}?id=${encodeURIComponent(complete.id)}`);
+      const bloc = document.getElementById('bloc-pretest')!;
+      const hote = document.getElementById('pretest-hote')!;
+      document.getElementById('pretest-lancer')!.addEventListener(
+        'click',
+        () => {
+          void montrerPretest(complete, hote).then(() => {
+            // Une fois le prétest passé, la fiche est la suite naturelle.
+            location.href = `${lien('/fiche/')}?id=${encodeURIComponent(complete.id)}`;
+          });
+        },
+        { once: true },
+      );
+      bloc.classList.remove('hidden');
+      return;
+    }
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(async () => {
+    await afficher();
+  });
+</script>

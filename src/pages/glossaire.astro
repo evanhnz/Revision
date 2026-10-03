@@ -1,0 +1,105 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Glossaire" actif="glossaire">
+  <h1 class="mb-1 text-2xl font-bold text-slate-900 dark:text-white">Glossaire</h1>
+  <p class="mb-5 text-sm text-slate-500 dark:text-slate-400">
+    Tous les termes soulignés dans les cours, par ordre alphabétique.
+  </p>
+
+  <input
+    id="filtre-glossaire"
+    type="search"
+    placeholder="Filtrer les termes…"
+    class="mb-5 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:focus:ring-indigo-900"
+  />
+
+  <div id="chargement" class="py-20 text-center text-slate-400">Déchiffrement du glossaire…</div>
+  <div id="lettres" class="mb-4 hidden flex-wrap gap-1"></div>
+  <div id="glossaire" class="space-y-6"></div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { chargerGlossaire, type TermeGlossaire } from '../lib/contenu';
+  import { normaliser } from '../lib/ui';
+
+  let termes: TermeGlossaire[] = [];
+  const $ = (id: string) => document.getElementById(id)!;
+
+  function rendre(filtre = '') {
+    const requete = normaliser(filtre.trim());
+    const retenus = termes.filter(
+      (t) => !requete || normaliser(t.terme).includes(requete) || normaliser(t.definition).includes(requete),
+    );
+
+    const parLettre = new Map<string, TermeGlossaire[]>();
+    for (const terme of retenus) {
+      const lettre = (normaliser(terme.terme)[0] ?? '#').toUpperCase();
+      const liste = parLettre.get(lettre) ?? [];
+      liste.push(terme);
+      parLettre.set(lettre, liste);
+    }
+
+    const zone = $('glossaire');
+    zone.innerHTML = '';
+    if (!retenus.length) {
+      zone.innerHTML = '<p class="py-10 text-center text-sm text-slate-500">Aucun terme ne correspond.</p>';
+      return;
+    }
+
+    for (const lettre of [...parLettre.keys()].sort()) {
+      const section = document.createElement('section');
+      section.id = `lettre-${lettre}`;
+      section.className = 'scroll-mt-24';
+      const titre = document.createElement('h2');
+      titre.className = 'mb-2 text-sm font-bold tracking-wide text-indigo-600 dark:text-indigo-400';
+      titre.textContent = lettre;
+      section.appendChild(titre);
+
+      const liste = document.createElement('dl');
+      liste.className = 'space-y-2';
+      for (const terme of parLettre.get(lettre)!.sort((a, b) => a.terme.localeCompare(b.terme, 'fr'))) {
+        const bloc = document.createElement('div');
+        bloc.className =
+          'rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900';
+        const dt = document.createElement('dt');
+        dt.className = 'font-semibold text-slate-900 dark:text-white';
+        dt.textContent = terme.terme;
+        const dd = document.createElement('dd');
+        dd.className = 'mt-1 text-sm text-slate-600 dark:text-slate-300';
+        dd.textContent = terme.definition;
+        bloc.append(dt, dd);
+        liste.appendChild(bloc);
+      }
+      section.appendChild(liste);
+      zone.appendChild(section);
+    }
+
+    // Index alphabétique cliquable.
+    const lettres = $('lettres');
+    lettres.innerHTML = '';
+    for (const lettre of [...parLettre.keys()].sort()) {
+      const a = document.createElement('a');
+      a.href = `#lettre-${lettre}`;
+      a.className =
+        'rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800';
+      a.textContent = lettre;
+      lettres.appendChild(a);
+    }
+    lettres.classList.remove('hidden');
+    lettres.classList.add('flex');
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(async () => {
+    termes = await chargerGlossaire();
+    $('chargement').classList.add('hidden');
+    rendre();
+    $('filtre-glossaire').addEventListener('input', (e) =>
+      rendre((e.target as HTMLInputElement).value),
+    );
+  });
+</script>

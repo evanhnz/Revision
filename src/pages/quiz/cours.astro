@@ -1,0 +1,464 @@
+---
+import Base from '../../layouts/Base.astro';
+import { base } from '../../lib/ui';
+---
+
+<Base titre="Quiz" actif="quiz">
+  <div id="chargement" class="py-20 text-center text-slate-400">Préparation du quiz…</div>
+
+  <section id="accueil-quiz" class="hidden">
+    <p class="etiquette text-indigo-600 dark:text-indigo-400">
+      <a href={`${base}/quiz/`} class="hover:underline">Quiz</a> · rubrique
+    </p>
+    <h1 class="mt-1 mb-1 text-2xl font-bold text-slate-900 dark:text-white">Quiz du cours</h1>
+    <p class="mb-6 text-sm text-slate-500 dark:text-slate-400">
+      Questions tirées de vos fiches, correction immédiate et score en fin de série.
+      Chaque série est plafonnée pour rester tenable.
+    </p>
+
+    <!-- Rappel ciblé : la série ne porte que sur les fiches d'une séance
+         passée, transmises par la page de planification. -->
+    <div
+      id="bandeau-rappel"
+      class="mb-5 hidden rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800 dark:bg-indigo-950/40"
+    >
+      <p class="etiquette text-indigo-600 dark:text-indigo-400">Rappel de séance</p>
+      <p id="texte-rappel" class="mt-1 text-sm text-slate-700 dark:text-slate-200"></p>
+    </div>
+
+    <div class="flex flex-wrap items-end gap-3">
+      <div>
+        <label for="quiz-matiere" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Matière</label>
+        <select id="quiz-matiere" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="">Toutes</option>
+        </select>
+      </div>
+      <div>
+        <label for="quiz-fiche" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Fiche</label>
+        <select id="quiz-fiche" class="max-w-[16rem] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="">Toutes</option>
+        </select>
+      </div>
+      <div>
+        <label for="quiz-taille" class="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Questions</label>
+        <select id="quiz-taille" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="30">30</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+      <p class="w-full text-xs text-slate-500 dark:text-slate-400">
+        Le nombre proposé reprend votre plafond de session —
+        <a id="lien-reglages" href={`${base}/progression/#reglages`} class="font-medium text-indigo-600 underline dark:text-indigo-400">modifier ce plafond</a>.
+      </p>
+      <button id="lancer-quiz" class="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700">
+        Commencer
+      </button>
+    </div>
+
+    <p id="quiz-vide" class="mt-6 hidden rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+      Aucune question de quiz pour cette sélection.
+    </p>
+
+    <div id="historique" class="mt-10"></div>
+  </section>
+
+  <section id="jeu" class="hidden">
+    <div class="mb-4 flex items-center gap-3">
+      <button id="quitter-quiz" class="text-sm text-slate-500 hover:underline dark:text-slate-400">← Quitter</button>
+      <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+        <div id="barre-quiz" class="h-full rounded-full bg-indigo-500 transition-all duration-300" style="width:0%"></div>
+      </div>
+      <span id="score-courant" class="text-sm font-medium text-slate-500 tabular-nums dark:text-slate-400">0/0</span>
+    </div>
+
+    <div class="mx-auto max-w-2xl">
+      <p id="quiz-source" class="mb-2 text-xs text-slate-400"></p>
+      <h2 id="quiz-question" class="mb-5 text-lg leading-relaxed font-medium text-slate-900 sm:text-xl dark:text-white"></h2>
+      <div id="quiz-options" class="space-y-2"></div>
+      <div id="quiz-correction" class="mt-4 hidden rounded-xl px-4 py-3 text-sm"></div>
+      <button id="quiz-suivant" class="mt-5 hidden w-full rounded-lg bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900">
+        Question suivante
+      </button>
+    </div>
+  </section>
+
+  <section id="resultat" class="hidden py-10 text-center">
+    <p id="resultat-emoji" class="text-5xl"></p>
+    <h2 class="mt-4 text-2xl font-bold text-slate-900 dark:text-white">
+      <span id="resultat-score"></span>
+    </h2>
+    <p id="resultat-detail" class="mt-2 text-slate-500 dark:text-slate-400"></p>
+    <div id="resultat-revoir" class="mx-auto mt-8 max-w-2xl space-y-2 text-left"></div>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <button id="rejouer-quiz" class="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700">
+        Nouveau quiz
+      </button>
+      <a id="quiz-accueil" href="#" class="rounded-lg border border-slate-300 px-5 py-2.5 font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+        Retour aux quiz
+      </a>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { aplatirFiches, chargerFiche, chargerManifeste, type QuestionQuiz } from '../../lib/contenu';
+  import { ajouterResultatQuiz, lireReglagesSession, tousLesResultatsQuiz } from '../../lib/db';
+  import { gagnerXp, xpQuiz } from '../../lib/gamification';
+  import { formaterDate, lien, melanger, notifier, parametreUrl } from '../../lib/ui';
+  import { signalerErreur } from '../../lib/journal';
+  import { enregistrerReponse, ordonnerParZoneProximale } from '../../lib/niveau';
+
+  interface QuestionPosee extends QuestionQuiz {
+    ficheId: string;
+    ficheTitre: string;
+    matiere: string;
+    fascicule: string;
+    /** Ordre d'affichage mélangé des options. */
+    ordre: number[];
+  }
+
+  let questions: QuestionPosee[] = [];
+  let position = 0;
+  let bonnes = 0;
+  let repondu = false;
+  const erreurs: { question: QuestionPosee; choisi: number }[] = [];
+
+  const $ = (id: string) => document.getElementById(id)!;
+
+  function afficherVue(nom: 'accueil-quiz' | 'jeu' | 'resultat') {
+    for (const section of ['accueil-quiz', 'jeu', 'resultat']) {
+      $(section).classList.toggle('hidden', section !== nom);
+    }
+  }
+
+  /** Fiches d'une séance passée, transmises sous la forme « ?fiches=a,b,c ». */
+  function fichesCiblees(): string[] | null {
+    const brut = parametreUrl('fiches');
+    if (!brut) return null;
+    const ids = brut.split(',').map((x) => x.trim()).filter(Boolean);
+    return ids.length ? ids : null;
+  }
+
+  /** Rassemble les questions correspondant aux filtres choisis. */
+  async function collecter(matiere: string, ficheId: string, limite: number): Promise<QuestionPosee[]> {
+    const manifeste = await chargerManifeste();
+    const ciblees = fichesCiblees();
+    const ensemble = ciblees?.length ? new Set(ciblees) : null;
+    const candidates = aplatirFiches(manifeste).filter(
+      (f) =>
+        f.nbQuiz > 0 &&
+        (!matiere || f.matiere === matiere) &&
+        (!ficheId || f.id === ficheId) &&
+        (!ensemble || ensemble.has(f.id)),
+    );
+
+    const toutes: QuestionPosee[] = [];
+    for (const resume of candidates) {
+      const fiche = await chargerFiche(resume.id);
+      for (const question of fiche.quiz) {
+        toutes.push({
+          ...question,
+          ficheId: fiche.id,
+          ficheTitre: fiche.titre,
+          matiere: fiche.matiere,
+          fascicule: fiche.fascicule,
+          ordre: melanger(question.options.map((_, i) => i)),
+        });
+      }
+    }
+    // Zone proximale : elle ne départage que des questions d'un même sujet.
+    // Sur un tirage qui mélange plusieurs matières, leurs difficultés estimées
+    // ne sont pas comparables, et le tirage reste aléatoire.
+    const sujets = new Set(toutes.map((q) => q.matiere));
+    const clefSujet = ficheId
+      ? `fiche:${ficheId}`
+      : sujets.size === 1
+        ? `matiere:${[...sujets][0]}`
+        : null;
+    const melangees = melanger(toutes);
+    const priorisees = clefSujet
+      ? await ordonnerParZoneProximale(melangees, clefSujet)
+      : melangees;
+    return limite > 0 ? priorisees.slice(0, limite) : priorisees;
+  }
+
+  function afficherQuestion() {
+    if (position >= questions.length) return terminer();
+    const q = questions[position];
+    repondu = false;
+
+    $('quiz-source').textContent = `${q.matiere} · ${q.ficheTitre}`;
+    $('quiz-question').textContent = q.question;
+    $('score-courant').textContent = `${bonnes}/${position}`;
+    $('barre-quiz').style.width = `${Math.round((position / questions.length) * 100)}%`;
+    $('quiz-correction').classList.add('hidden');
+    $('quiz-suivant').classList.add('hidden');
+
+    const zone = $('quiz-options');
+    zone.innerHTML = '';
+    for (const index of q.ordre) {
+      const bouton = document.createElement('button');
+      bouton.className =
+        'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-left transition hover:border-indigo-400 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/50';
+      bouton.textContent = q.options[index];
+      bouton.dataset.index = String(index);
+      bouton.addEventListener('click', () => void repondre(index));
+      zone.appendChild(bouton);
+    }
+  }
+
+  async function repondre(choisi: number) {
+    if (repondu) return;
+    repondu = true;
+    const q = questions[position];
+    const correct = q.bonnes.includes(choisi);
+    void enregistrerReponse({
+      itemId: q.id,
+      resultat: correct ? 1 : 0,
+      matiere: q.matiere,
+      fascicule: q.fascicule,
+      ficheId: q.ficheId,
+      ficheTitre: q.ficheTitre,
+      source: parametreUrl('fiches') ? 'rappels' : 'quiz',
+    });
+    if (correct) bonnes += 1;
+    else {
+      erreurs.push({ question: q, choisi });
+      // Une réponse fausse ouvre une entrée au journal d'erreurs : elle sera
+      // servie d'office à la prochaine séance de cette matière.
+      void signalerErreur({
+        id: q.id,
+        genre: 'quiz',
+        matiere: q.matiere,
+        fascicule: q.fascicule,
+        ficheId: q.ficheId,
+      });
+    }
+
+    // Feedback visuel immédiat sur chaque option.
+    for (const bouton of $('quiz-options').querySelectorAll<HTMLButtonElement>('button')) {
+      const index = Number(bouton.dataset.index);
+      bouton.disabled = true;
+      if (q.bonnes.includes(index)) {
+        bouton.className =
+          'w-full rounded-xl border-2 border-emerald-500 bg-emerald-50 px-4 py-3 text-left font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200';
+      } else if (index === choisi) {
+        bouton.className =
+          'w-full rounded-xl border-2 border-red-400 bg-red-50 px-4 py-3 text-left text-red-900 line-through dark:bg-red-950 dark:text-red-200';
+      } else {
+        bouton.className =
+          'w-full rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-400 dark:border-slate-800';
+      }
+    }
+
+    const correction = $('quiz-correction');
+    correction.className = correct
+      ? 'mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
+      : 'mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-900 dark:bg-red-950/60 dark:text-red-200';
+    correction.textContent = correct ? '✓ Bonne réponse.' : '✗ Réponse incorrecte.';
+    if (q.explication) {
+      const p = document.createElement('p');
+      p.className = 'mt-1 opacity-90';
+      p.textContent = q.explication;
+      correction.appendChild(p);
+    }
+    correction.classList.remove('hidden');
+
+    $('score-courant').textContent = `${bonnes}/${position + 1}`;
+    const suivant = $('quiz-suivant');
+    suivant.textContent = position + 1 >= questions.length ? 'Voir le résultat' : 'Question suivante';
+    suivant.classList.remove('hidden');
+    suivant.focus();
+  }
+
+  async function terminer() {
+    $('barre-quiz').style.width = '100%';
+    const total = questions.length;
+    const taux = total ? bonnes / total : 0;
+
+    // Le résultat est enregistré par fiche (moyenne pondérée si le quiz couvre
+    // plusieurs fiches : on enregistre une entrée par fiche concernée).
+    const parFiche = new Map<string, { matiere: string; bonnes: number; total: number }>();
+    questions.forEach((q, i) => {
+      const entree = parFiche.get(q.ficheId) ?? { matiere: q.matiere, bonnes: 0, total: 0 };
+      entree.total += 1;
+      if (!erreurs.some((e) => e.question === questions[i])) entree.bonnes += 1;
+      parFiche.set(q.ficheId, entree);
+    });
+    const maintenant = new Date().toISOString();
+    for (const [ficheId, valeur] of parFiche) {
+      await ajouterResultatQuiz({ ficheId, le: maintenant, ...valeur });
+    }
+
+    const gain = await gagnerXp(xpQuiz(bonnes), { quiz: 1, bonnes, reponses: total });
+    for (const badge of gain.nouveauxBadges) notifier(`${badge.icone} Succès : ${badge.nom}`, 'badge');
+    if (gain.monteeDeNiveau) notifier(`🎉 Niveau ${gain.niveau.niveau} !`, 'succes');
+
+    $('resultat-emoji').textContent = taux === 1 ? '🏆' : taux >= 0.8 ? '🎉' : taux >= 0.5 ? '👍' : '📚';
+    $('resultat-score').textContent = `${bonnes} / ${total} — ${Math.round(taux * 100)} %`;
+    $('resultat-detail').textContent = `+${gain.xpGagne} XP`;
+
+    const revoir = $('resultat-revoir');
+    revoir.innerHTML = '';
+    if (erreurs.length) {
+      const titre = document.createElement('p');
+      titre.className = 'mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300';
+      titre.textContent = 'À revoir :';
+      revoir.appendChild(titre);
+      for (const { question, choisi } of erreurs) {
+        const bloc = document.createElement('div');
+        bloc.className =
+          'rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900';
+        bloc.innerHTML = `
+          <p class="font-medium text-slate-900 dark:text-white" data-q></p>
+          <p class="mt-1 text-red-600 dark:text-red-400">Votre réponse : <span data-choisi></span></p>
+          <p class="mt-0.5 text-emerald-700 dark:text-emerald-400">Bonne réponse : <span data-bonne></span></p>
+          <a class="mt-2 inline-block text-xs text-indigo-600 hover:underline dark:text-indigo-400" data-lien>Revoir la fiche →</a>`;
+        bloc.querySelector('[data-q]')!.textContent = question.question;
+        bloc.querySelector('[data-choisi]')!.textContent = question.options[choisi];
+        bloc.querySelector('[data-bonne]')!.textContent = question.bonnes
+          .map((i) => question.options[i])
+          .join(', ');
+        bloc
+          .querySelector('[data-lien]')!
+          .setAttribute('href', `${lien('/fiche/')}?id=${encodeURIComponent(question.ficheId)}`);
+        revoir.appendChild(bloc);
+      }
+    }
+
+    afficherVue('resultat');
+  }
+
+  async function afficherHistorique() {
+    const resultats = (await tousLesResultatsQuiz()).sort((a, b) => b.le.localeCompare(a.le)).slice(0, 8);
+    const zone = $('historique');
+    zone.innerHTML = '';
+    if (!resultats.length) return;
+
+    const titre = document.createElement('h2');
+    titre.className = 'mb-3 text-lg font-semibold text-slate-900 dark:text-white';
+    titre.textContent = 'Derniers résultats';
+    zone.appendChild(titre);
+
+    const liste = document.createElement('div');
+    liste.className = 'space-y-2';
+    for (const r of resultats) {
+      const taux = r.total ? Math.round((r.bonnes / r.total) * 100) : 0;
+      const ligne = document.createElement('div');
+      ligne.className =
+        'flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-800 dark:bg-slate-900';
+      ligne.innerHTML = `
+        <span class="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-200" data-matiere></span>
+        <span class="shrink-0 text-xs text-slate-400">${formaterDate(r.le)}</span>
+        <span class="shrink-0 font-semibold ${taux >= 80 ? 'text-emerald-600 dark:text-emerald-400' : taux >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}">${r.bonnes}/${r.total}</span>`;
+      ligne.querySelector('[data-matiere]')!.textContent = r.matiere;
+      liste.appendChild(ligne);
+    }
+    zone.appendChild(liste);
+  }
+
+  async function demarrer() {
+    const matiere = ($('quiz-matiere') as HTMLSelectElement).value;
+    const ficheId = ($('quiz-fiche') as HTMLSelectElement).value;
+    const limite = Number(($('quiz-taille') as HTMLSelectElement).value);
+
+    questions = await collecter(matiere, ficheId, limite);
+    if (!questions.length) {
+      $('quiz-vide').classList.remove('hidden');
+      return;
+    }
+    $('quiz-vide').classList.add('hidden');
+    position = 0;
+    bonnes = 0;
+    erreurs.length = 0;
+    afficherVue('jeu');
+    afficherQuestion();
+  }
+
+  /** Recharge la liste des fiches proposées selon la matière sélectionnée. */
+  async function majListeFiches() {
+    const manifeste = await chargerManifeste();
+    const matiere = ($('quiz-matiere') as HTMLSelectElement).value;
+    const select = $('quiz-fiche') as HTMLSelectElement;
+    const valeurCourante = select.value;
+    select.innerHTML = '<option value="">Toutes</option>';
+    for (const f of aplatirFiches(manifeste)) {
+      if (f.nbQuiz === 0) continue;
+      if (matiere && f.matiere !== matiere) continue;
+      const option = document.createElement('option');
+      option.value = f.id;
+      option.textContent = f.titre;
+      select.appendChild(option);
+    }
+    select.value = [...select.options].some((o) => o.value === valeurCourante) ? valeurCourante : '';
+  }
+
+  async function initialiser() {
+    const manifeste = await chargerManifeste();
+    const selectMatiere = $('quiz-matiere') as HTMLSelectElement;
+    for (const matiere of manifeste.matieres) {
+      const option = document.createElement('option');
+      option.value = matiere.nom;
+      option.textContent = matiere.nom;
+      selectMatiere.appendChild(option);
+    }
+    await majListeFiches();
+
+    // Le plafond enregistré devient la longueur proposée par défaut.
+    const { plafondQuestions } = await lireReglagesSession();
+    const taille = $('quiz-taille') as HTMLSelectElement;
+    if (![...taille.options].some((o) => Number(o.value) === plafondQuestions)) {
+      const option = document.createElement('option');
+      option.value = String(plafondQuestions);
+      option.textContent = String(plafondQuestions);
+      taille.appendChild(option);
+    }
+    taille.value = String(plafondQuestions);
+
+    const ficheUrl = parametreUrl('fiche');
+    if (ficheUrl) ($('quiz-fiche') as HTMLSelectElement).value = ficheUrl;
+
+    // Rappel ciblé sur les fiches d'une séance passée : les filtres manuels
+    // n'ont plus lieu d'être, le périmètre est imposé par la séance.
+    const ciblees = fichesCiblees();
+    if (ciblees) {
+      const titres = aplatirFiches(manifeste)
+        .filter((f) => ciblees.includes(f.id))
+        .map((f) => f.titre);
+      $('texte-rappel').textContent = titres.length
+        ? `Série limitée aux fiches travaillées lors d'une séance précédente : ${titres.join(' · ')}.`
+        : 'Série limitée aux fiches d\'une séance précédente.';
+      $('bandeau-rappel').classList.remove('hidden');
+      selectMatiere.value = '';
+      selectMatiere.disabled = true;
+      ($('quiz-fiche') as HTMLSelectElement).value = '';
+      ($('quiz-fiche') as HTMLSelectElement).disabled = true;
+    }
+
+    selectMatiere.addEventListener('change', () => void majListeFiches());
+    $('lancer-quiz').addEventListener('click', () => void demarrer());
+    $('rejouer-quiz').addEventListener('click', () => {
+      afficherVue('accueil-quiz');
+      void afficherHistorique();
+    });
+    $('quitter-quiz').addEventListener('click', () => afficherVue('accueil-quiz'));
+    $('quiz-suivant').addEventListener('click', () => {
+      position += 1;
+      afficherQuestion();
+    });
+    $('quiz-accueil').setAttribute('href', lien('/quiz/'));
+
+    await afficherHistorique();
+    $('chargement').classList.add('hidden');
+    afficherVue('accueil-quiz');
+
+    if (ficheUrl) void demarrer();
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(initialiser);
+</script>

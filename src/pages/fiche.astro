@@ -1,0 +1,305 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base titre="Fiche" actif="bibliotheque">
+  <div id="chargement" class="py-20 text-center text-slate-400">Déchiffrement de la fiche…</div>
+
+  <article id="fiche" class="hidden">
+    <nav class="mb-3 text-sm text-slate-500 dark:text-slate-400">
+      <a id="retour" href="#" class="hover:underline">← Bibliothèque</a>
+      <span class="mx-2">·</span>
+      <span id="fil"></span>
+    </nav>
+
+    <header class="mb-5">
+      <div class="flex flex-wrap items-start gap-3">
+        <h1 id="titre" class="min-w-0 flex-1 text-2xl font-bold text-slate-900 sm:text-3xl dark:text-white"></h1>
+        <a
+          id="modifier"
+          href="#"
+          class="hidden shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-300 dark:hover:text-indigo-300"
+        >✏️ Modifier</a>
+      </div>
+      <div id="tags" class="mt-2 flex flex-wrap gap-1.5"></div>
+    </header>
+
+    <!-- Fiche audio : le cours dit à voix haute, déchiffré à la demande -->
+    <section
+      id="podcast"
+      class="mb-5 hidden rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+      aria-label="Fiche audio"
+    >
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span class="etiquette text-indigo-700 dark:text-indigo-300">🎧 Fiche audio</span>
+        <button
+          id="podcast-bouton"
+          type="button"
+          class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
+        >▶ Écouter la fiche</button>
+        <p id="podcast-info" class="text-sm text-slate-500 dark:text-slate-400"></p>
+      </div>
+      <audio id="podcast-lecteur" class="mt-3 hidden w-full" controls preload="none"></audio>
+    </section>
+
+    <!-- Bascule cours complet / fiche simplifiée -->
+    <div class="sticky top-[57px] z-30 -mx-4 mb-5 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="inline-flex rounded-lg border border-slate-300 p-0.5 dark:border-slate-700" role="tablist">
+          <button id="onglet-cours" role="tab" class="rounded-md px-3 py-1.5 text-sm font-medium">Cours complet</button>
+          <button id="onglet-simplifiee" role="tab" class="rounded-md px-3 py-1.5 text-sm font-medium">Fiche simplifiée</button>
+        </div>
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <button id="bouton-flashcards" class="hidden rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
+            🃏 Réviser (<span id="nb-cartes">0</span>)
+          </button>
+          <button id="bouton-quiz" class="hidden rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+            🎯 Quiz (<span id="nb-quiz">0</span>)
+          </button>
+          <button id="bouton-lu" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+            Marquer comme lue
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="lg:flex lg:gap-8">
+      <!-- Sommaire -->
+      <aside class="mb-6 hidden shrink-0 lg:block lg:w-56">
+        <div class="sticky top-32">
+          <p class="mb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">Sommaire</p>
+          <nav id="sommaire" class="defilement-fin max-h-[60vh] space-y-1 overflow-y-auto text-sm"></nav>
+        </div>
+      </aside>
+
+      <div class="min-w-0 flex-1">
+        <!-- Prétest : rempli par src/lib/pretest.ts, avant la première lecture. -->
+        <div id="pretest" class="mb-6 hidden"></div>
+        <div id="contenu" class="contenu"></div>
+        <p id="section-vide" class="hidden rounded-xl bg-slate-100 px-4 py-6 text-center text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400"></p>
+
+        <!-- Navigation fiche précédente / suivante -->
+        <div class="mt-10 flex justify-between gap-3 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <a id="precedente" class="hidden max-w-[45%] text-sm text-indigo-600 hover:underline dark:text-indigo-400"></a>
+          <a id="suivante" class="hidden ml-auto max-w-[45%] text-right text-sm text-indigo-600 hover:underline dark:text-indigo-400"></a>
+        </div>
+      </div>
+    </div>
+  </article>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../lib/chargement';
+  import { aplatirFiches, chargerFiche, chargerManifeste, type Fiche } from '../lib/contenu';
+  import { ecrireEtatFiche, lireEtatFiche } from '../lib/db';
+  import { aProposer, montrer as montrerPretest } from '../lib/pretest';
+  import { gagnerXp, xpFiche } from '../lib/gamification';
+  import { activerGlossaire } from '../lib/glossaire';
+  import { installerLecteurPodcast } from '../lib/podcast';
+  import { lien, notifier, parametreUrl } from '../lib/ui';
+
+  let fiche: Fiche;
+  let vue: 'cours' | 'simplifiee' = 'cours';
+
+  const CLASSES_ACTIF = 'bg-slate-900 text-white dark:bg-white dark:text-slate-900';
+  const CLASSES_INACTIF = 'text-slate-600 dark:text-slate-300';
+
+  function majOnglets() {
+    const cours = document.getElementById('onglet-cours')!;
+    const simplifiee = document.getElementById('onglet-simplifiee')!;
+    cours.className = `rounded-md px-3 py-1.5 text-sm font-medium ${vue === 'cours' ? CLASSES_ACTIF : CLASSES_INACTIF}`;
+    simplifiee.className = `rounded-md px-3 py-1.5 text-sm font-medium ${vue === 'simplifiee' ? CLASSES_ACTIF : CLASSES_INACTIF}`;
+    cours.setAttribute('aria-selected', String(vue === 'cours'));
+    simplifiee.setAttribute('aria-selected', String(vue === 'simplifiee'));
+  }
+
+  async function afficherSection() {
+    const conteneur = document.getElementById('contenu')!;
+    const vide = document.getElementById('section-vide')!;
+    const html = vue === 'cours' ? fiche.coursHtml : fiche.ficheHtml;
+
+    if (!html) {
+      conteneur.innerHTML = '';
+      vide.textContent =
+        vue === 'cours'
+          ? 'Cette fiche ne comporte pas de section « ## Cours complet ».'
+          : 'Cette fiche ne comporte pas de section « ## Fiche simplifiée ».';
+      vide.classList.remove('hidden');
+      return;
+    }
+    vide.classList.add('hidden');
+    // Le HTML vient du contenu déchiffré, produit par notre propre pipeline de build.
+    conteneur.innerHTML = html;
+    await activerGlossaire(conteneur);
+
+    // Sommaire (uniquement pour le cours complet).
+    const sommaire = document.getElementById('sommaire')!;
+    sommaire.innerHTML = '';
+    if (vue === 'cours') {
+      for (const entree of fiche.sommaire) {
+        const a = document.createElement('a');
+        a.href = `#${entree.id}`;
+        a.className = `block truncate rounded px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 ${
+          entree.niveau > 2 ? 'pl-4 text-slate-500 dark:text-slate-400' : 'font-medium text-slate-700 dark:text-slate-200'
+        }`;
+        a.textContent = entree.titre;
+        sommaire.appendChild(a);
+      }
+    }
+    try {
+      localStorage.setItem('revinsp.vue-fiche', vue);
+    } catch {
+      /* navigation privée */
+    }
+  }
+
+  async function marquerLue() {
+    const bouton = document.getElementById('bouton-lu') as HTMLButtonElement;
+    const etat = await lireEtatFiche(fiche.id);
+    if (etat?.lu) return;
+    // L'étalement d'abord : sans lui, chaque écriture effacerait les champs que
+    // cette fonction ne connaît pas — l'état du prétest, par exemple.
+    await ecrireEtatFiche({
+      ...etat,
+      id: fiche.id,
+      matiere: fiche.matiere,
+      lu: true,
+      derniereOuverture: new Date().toISOString(),
+      secondes: etat?.secondes ?? 0,
+    });
+    const gain = await gagnerXp(xpFiche());
+    notifier(`+${gain.xpGagne} XP — fiche terminée`, 'succes');
+    for (const badge of gain.nouveauxBadges) notifier(`${badge.icone} Succès : ${badge.nom}`, 'badge');
+    if (gain.monteeDeNiveau) notifier(`🎉 Niveau ${gain.niveau.niveau} !`, 'succes');
+    majBoutonLu(true);
+    bouton.blur();
+  }
+
+  function majBoutonLu(lu: boolean) {
+    const bouton = document.getElementById('bouton-lu') as HTMLButtonElement;
+    bouton.textContent = lu ? '✓ Fiche lue' : 'Marquer comme lue';
+    bouton.className = lu
+      ? 'rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+      : 'rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800';
+    bouton.disabled = lu;
+  }
+
+  async function initialiser() {
+    const id = parametreUrl('id');
+    if (!id) {
+      location.replace(lien('/bibliotheque/'));
+      return;
+    }
+
+    fiche = await chargerFiche(id);
+    document.title = `${fiche.titre} · Révisions`;
+    document.getElementById('titre')!.textContent = fiche.titre;
+    document.getElementById('fil')!.textContent = (fiche.chemin ?? [fiche.matiere, fiche.fascicule]).join(' › ');
+    document.getElementById('retour')!.setAttribute(
+      'href',
+      `${lien('/bibliotheque/')}?matiere=${encodeURIComponent(fiche.matiere)}`,
+    );
+
+    const zoneTags = document.getElementById('tags')!;
+    for (const tag of fiche.tags) {
+      const span = document.createElement('span');
+      span.className =
+        'rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+      span.textContent = tag;
+      zoneTags.appendChild(span);
+    }
+
+    // Fiche audio (podcast), déchiffrée seulement si on la demande.
+    installerLecteurPodcast(fiche);
+
+    // Boutons de révision contextuels.
+    if (fiche.flashcards.length) {
+      const bouton = document.getElementById('bouton-flashcards')!;
+      bouton.classList.remove('hidden');
+      document.getElementById('nb-cartes')!.textContent = String(fiche.flashcards.length);
+      bouton.addEventListener('click', () => {
+        location.href = `${lien('/flashcards/')}?fiche=${encodeURIComponent(fiche.id)}`;
+      });
+    }
+    if (fiche.quiz.length) {
+      const bouton = document.getElementById('bouton-quiz')!;
+      bouton.classList.remove('hidden');
+      document.getElementById('nb-quiz')!.textContent = String(fiche.quiz.length);
+      bouton.addEventListener('click', () => {
+        location.href = `${lien('/quiz/cours/')}?fiche=${encodeURIComponent(fiche.id)}`;
+      });
+    }
+
+    // État « lue » et date de dernière ouverture.
+    const etat = await lireEtatFiche(fiche.id);
+    majBoutonLu(etat?.lu ?? false);
+    await ecrireEtatFiche({
+      ...etat,
+      id: fiche.id,
+      matiere: fiche.matiere,
+      lu: etat?.lu ?? false,
+      derniereOuverture: new Date().toISOString(),
+      secondes: etat?.secondes ?? 0,
+    });
+    document.getElementById('bouton-lu')!.addEventListener('click', () => void marquerLue());
+
+    // Onglets cours / fiche simplifiée.
+    let memorisee: string | null = null;
+    try {
+      memorisee = localStorage.getItem('revinsp.vue-fiche');
+    } catch {
+      /* navigation privée */
+    }
+    vue = memorisee === 'simplifiee' && fiche.ficheHtml ? 'simplifiee' : fiche.coursHtml ? 'cours' : 'simplifiee';
+    document.getElementById('onglet-cours')!.addEventListener('click', async () => {
+      vue = 'cours';
+      majOnglets();
+      await afficherSection();
+    });
+    document.getElementById('onglet-simplifiee')!.addEventListener('click', async () => {
+      vue = 'simplifiee';
+      majOnglets();
+      await afficherSection();
+    });
+    majOnglets();
+    await afficherSection();
+
+    // Fiches précédente / suivante dans l'ordre du fascicule.
+    const toutes = aplatirFiches(await chargerManifeste());
+    const index = toutes.findIndex((f) => f.id === fiche.id);
+    const fichier = toutes[index]?.fichier;
+    if (fichier) {
+      const modifier = document.getElementById('modifier')!;
+      modifier.setAttribute('href', `${lien('/editeur/')}?fichier=${encodeURIComponent(fichier)}`);
+      modifier.classList.remove('hidden');
+    }
+    const lienVoisin = (element: HTMLElement, voisin: (typeof toutes)[number] | undefined, prefixe: string) => {
+      if (!voisin) return;
+      element.setAttribute('href', `${lien('/fiche/')}?id=${encodeURIComponent(voisin.id)}`);
+      element.textContent = `${prefixe} ${voisin.titre}`;
+      element.classList.remove('hidden');
+    };
+    lienVoisin(document.getElementById('precedente')!, toutes[index - 1], '←');
+    lienVoisin(document.getElementById('suivante')!, toutes[index + 1], '→');
+
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('fiche')!.classList.remove('hidden');
+
+    // Prétest : avant la première lecture, et une seule fois. Le cours est masqué
+    // le temps des questions — le laisser visible derrière viderait l'exercice
+    // de son sens, puisqu'il suffirait de lire la réponse.
+    if (await aProposer(fiche)) {
+      const zoneContenu = document.getElementById('contenu')!;
+      const zoneSommaire = document.getElementById('sommaire')!.parentElement!;
+      zoneContenu.classList.add('hidden');
+      zoneSommaire.classList.add('invisible');
+      await montrerPretest(fiche, document.getElementById('pretest')!);
+      zoneContenu.classList.remove('hidden');
+      zoneSommaire.classList.remove('invisible');
+    }
+  }
+
+  // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
+  // exécution même si ce script arrive après l'ouverture de la session.
+  auDeverrouillage(initialiser);
+</script>

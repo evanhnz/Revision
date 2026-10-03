@@ -1,0 +1,23 @@
+# --- CONTENU EN CLAIR : NE JAMAIS COMMITER ---
+# Les fiches en clair et le mot de passe restent sur la machine locale.
+# Dans le dépôt, les fiches vivent CHIFFRÉES dans sources/.
+content/
+.env.local
+.env
+
+# --- Données générées par le build (contenu chiffré, régénérable) ---
+public/data/
+
+# Outillage local de la synthèse vocale : « npm run podcasts:installer ».
+outils/
+
+# --- Dépendances et artefacts de build ---
+node_modules/
+dist/
+.astro/
+
+# --- Divers ---
+.DS_Store
+*.log
+npm-debug.log*
+.cache/

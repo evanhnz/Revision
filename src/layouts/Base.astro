@@ -1,0 +1,176 @@
+---
+/**
+ * Gabarit commun : en-tête, navigation, écran de connexion, thème.
+ * Le contenu de la page n'est rendu qu'une fois la session déverrouillée.
+ */
+import '../styles/global.css';
+import Verrou from '../components/Verrou.astro';
+import CommutateurTheme from '../components/CommutateurTheme.astro';
+import BarreProgression from '../components/BarreProgression.astro';
+import PiedDePage from '../components/PiedDePage.astro';
+import config from '../../site.config.mjs';
+
+interface Props {
+  titre: string;
+  /** Identifiant de l'onglet de navigation actif. */
+  actif?: string;
+  /** Masque la navigation principale (page plein écran). */
+  sansNavigation?: boolean;
+}
+
+const { titre, actif, sansNavigation = false } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+// « libelle » est le nom complet (lecteurs d'écran, info-bulle) ; « court »
+// est la version affichée à côté de l'icône sur les grands écrans.
+const onglets = [
+  { id: 'accueil', libelle: 'Tableau de bord', court: 'Accueil', href: `${base}/`, icone: '🏠' },
+  { id: 'planification', libelle: 'Planification des révisions', court: 'Planning', href: `${base}/planification/`, icone: '🗓️' },
+  { id: 'bibliotheque', libelle: 'Bibliothèque', court: 'Cours', href: `${base}/bibliotheque/`, icone: '📚' },
+  { id: 'flashcards', libelle: 'Flashcards', court: 'Cartes', href: `${base}/flashcards/`, icone: '🃏' },
+  { id: 'quiz', libelle: 'Quiz', court: 'Quiz', href: `${base}/quiz/`, icone: '🎯' },
+  { id: 'journal', libelle: "Journal d'erreurs", court: 'Erreurs', href: `${base}/journal/`, icone: '🩹' },
+  { id: 'cog-training', libelle: 'Cog-Training — entraînement cognitif', court: 'Cog-Training', href: `${base}/cog-training/`, icone: '🧩' },
+  { id: 'editeur', libelle: 'Éditeur de fiches', court: 'Éditeur', href: `${base}/editeur/`, icone: '✏️' },
+  { id: 'recherche', libelle: 'Recherche', court: 'Recherche', href: `${base}/recherche/`, icone: '🔎' },
+  { id: 'statistiques', libelle: 'Statistiques', court: 'Stats', href: `${base}/statistiques/`, icone: '📈' },
+  { id: 'glossaire', libelle: 'Glossaire', court: 'Glossaire', href: `${base}/glossaire/`, icone: '📖' },
+  { id: 'progression', libelle: 'Sauvegarde et synchronisation', court: 'Sauvegarde', href: `${base}/progression/`, icone: '💾' },
+];
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Non-indexation : aucun moteur ne doit référencer ce site. -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="googlebot" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{titre} · {config.titre}</title>
+    <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <script is:inline>
+      // Applique le thème avant le premier rendu pour éviter tout clignotement.
+      // Trois choix possibles : « clair », « sombre » et « systeme ». Seul le
+      // thème résolu (clair ou sombre) est écrit dans « data-theme » ; le choix
+      // d'origine est conservé dans « data-theme-choix » pour le commutateur.
+      // En l'absence de choix enregistré, on reste sur le thème sombre, qui est
+      // celui du site depuis toujours.
+      (function () {
+        var choix = 'sombre';
+        try {
+          var brut = localStorage.getItem('revinsp.theme');
+          if (brut === 'clair' || brut === 'sombre' || brut === 'systeme') choix = brut;
+        } catch (e) {
+          /* navigation privée : on garde le défaut */
+        }
+        var rendu =
+          choix === 'systeme'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'sombre'
+              : 'clair'
+            : choix;
+        var racine = document.documentElement;
+        racine.setAttribute('data-theme', rendu);
+        racine.setAttribute('data-theme-choix', choix);
+        racine.style.colorScheme = rendu === 'sombre' ? 'dark' : 'light';
+      })();
+    </script>
+  </head>
+
+  <body>
+    <BarreProgression />
+    <Verrou />
+
+    <div id="application" class="hidden min-h-screen">
+      {
+        !sansNavigation && (
+          <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
+            <div class="bandeau-tricolore"></div>
+            <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+              <a
+                href={`${base}/`}
+                class="flex shrink-0 items-center gap-2 font-semibold text-slate-900 dark:text-white"
+              >
+                <span class="text-lg">🎓</span>
+                <span class="hidden sm:inline">{config.titre}</span>
+              </a>
+
+              <nav
+                id="navigation-principale"
+                aria-label="Navigation principale"
+                class="defilement-masque -mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1"
+              >
+                {onglets.map((onglet) => (
+                  <a
+                    href={onglet.href}
+                    title={onglet.libelle}
+                    aria-label={onglet.libelle}
+                    aria-current={actif === onglet.id ? 'page' : undefined}
+                    class:list={[
+                      'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition',
+                      actif === onglet.id
+                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                    ]}
+                  >
+                    <span aria-hidden="true">{onglet.icone}</span>
+                    <span class="hidden lg:inline">{onglet.court}</span>
+                  </a>
+                ))}
+              </nav>
+
+              <div class="flex shrink-0 items-center gap-1">
+                <CommutateurTheme />
+                <button
+                  id="bouton-verrouiller"
+                  type="button"
+                  title="Verrouiller la session"
+                  aria-label="Verrouiller la session"
+                  class="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  <span aria-hidden="true">🔒</span>
+                </button>
+              </div>
+            </div>
+          </header>
+        )
+      }
+
+      <main class="mx-auto max-w-6xl px-4 py-8">
+        <slot />
+      </main>
+
+      {!sansNavigation && <PiedDePage />}
+    </div>
+
+    <script>
+      import { quandDeverrouille, verrouiller } from '../lib/auth';
+      import { masquerDebordement } from '../lib/defilement';
+      import { initGlossaireGlobal } from '../lib/glossaire';
+      import { suivreTemps } from '../lib/temps';
+
+      initGlossaireGlobal();
+
+      // Le ruban d'onglets déborde dès les écrans étroits : plutôt qu'une barre
+      // de défilement sous les icônes, on estompe le bord encore parcourable.
+      const rubanOnglets = document.getElementById('navigation-principale');
+      if (rubanOnglets) masquerDebordement(rubanOnglets);
+
+      // Le choix du thème est géré par « components/CommutateurTheme.astro ».
+
+      document.getElementById('bouton-verrouiller')?.addEventListener('click', () => {
+        verrouiller();
+        document.dispatchEvent(new CustomEvent('revinsp:verrouille'));
+        location.reload();
+      });
+
+      // Le temps n'est comptabilisé qu'une fois la session ouverte.
+      // « quandDeverrouille » et non un écouteur nu : le paquet de cette page
+      // peut arriver après l'ouverture de la session (voir lib/auth.ts).
+      quandDeverrouille(() => suivreTemps());
+    </script>
+  </body>
+</html>

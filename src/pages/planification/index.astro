@@ -1,0 +1,375 @@
+---
+/**
+ * Planification des révisions — vue « Aujourd'hui » et planning.
+ *
+ * Trois blocs :
+ *   1. la séance du jour, proposée automatiquement par la rotation ;
+ *   2. le planning des deux semaines autour d'aujourd'hui, où chaque jour à
+ *      venir peut être réassigné ou échangé ;
+ *   3. les réglages de rotation — quelle matière tombe quel jour.
+ */
+import Base from '../../layouts/Base.astro';
+import Section from '../../components/Section.astro';
+---
+
+<Base titre="Planification" actif="planification">
+  <div id="chargement" class="py-20 text-center text-slate-400">Chargement du planning…</div>
+
+  <div id="planification" class="hidden space-y-8">
+    <!-- Suggestion trimestrielle : indicative, jamais bloquante. -->
+    <div
+      id="banniere-trimestre"
+      class="hidden rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40"
+      role="status"
+    >
+      <p class="etiquette text-amber-700 dark:text-amber-300">Suggestion trimestrielle</p>
+      <p class="mt-1.5 font-semibold text-slate-900 dark:text-white">
+        Reprendre les trois derniers mois
+      </p>
+      <p id="texte-trimestre" class="mt-2 text-sm text-slate-700 dark:text-slate-300"></p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <a
+          id="lien-trimestre"
+          href="#planning"
+          class="inline-flex min-h-11 items-center rounded-lg bg-amber-600 px-4 text-sm font-medium text-white transition hover:bg-amber-700"
+        >
+          Voir les séances concernées
+        </a>
+        <button
+          id="ecarter-trimestre"
+          type="button"
+          class="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-medium text-amber-800 transition hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40"
+        >
+          Plus tard
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Séance du jour ────────────────────────────────────────────── -->
+    <section>
+      <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Aujourd'hui</h1>
+        <p id="date-du-jour" class="text-sm text-slate-500 dark:text-slate-400"></p>
+      </div>
+
+      <div
+        id="carte-jour"
+        class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p id="etiquette-jour" class="etiquette text-indigo-600 dark:text-indigo-400"></p>
+            <h2 id="titre-jour" class="mt-1 flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-white"></h2>
+          </div>
+          <span
+            id="badge-etendue"
+            class="hidden shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300"
+          >
+            Révision du mois
+          </span>
+        </div>
+
+        <p id="resume-jour" class="mt-3 text-sm text-slate-600 dark:text-slate-300"></p>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <a
+            id="lien-seance"
+            href="seance/"
+            class="inline-flex min-h-11 items-center rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition hover:bg-indigo-700"
+          >
+            Commencer la séance
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Planning ─────────────────────────────────────────────────── -->
+    <Section
+      titre="Planning"
+      id="planning"
+      chapeau="Les séances à venir suivent la rotation. Un jour non encore tenu peut être réassigné à une autre matière, mis au repos, ou échangé avec le lendemain."
+      grilleId="grille-planning"
+      grille="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+    />
+
+    <!-- ── Rotation ─────────────────────────────────────────────────── -->
+    <Section
+      titre="Rotation hebdomadaire"
+      chapeau="Une matière par jour : chaque matière revient ainsi une fois par semaine. Un jour peut aussi être mis au repos — aucune révision n'y sera programmée, et la série de jours n'en souffre pas."
+      grilleId="grille-rotation"
+      grille="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+    />
+
+    <p id="message-rotation" class="hidden text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status"></p>
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+  import { ajouterJours, jourISO } from '../../lib/db';
+  import { formaterDuree, lien, pluriel } from '../../lib/ui';
+  import {
+    JOURS_SEMAINE,
+    THEMES_ASSIGNABLES,
+    estRepos,
+    ecarterSuggestionTrimestrielle,
+    ecrireRotation,
+    echanger,
+    historique,
+    lireReglages,
+    planning,
+    reassigner,
+    seanceDuJour,
+    suggestionTrimestrielle,
+    theme as themeParId,
+  } from '../../lib/planification';
+
+  const $ = (id: string) => document.getElementById(id)!;
+
+  const dateLongue = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const dateCourte = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const enDate = (jour: string) => new Date(`${jour}T12:00:00`);
+
+  async function peindre() {
+    const aujourdhui = jourISO();
+
+    /* ── Séance du jour ──────────────────────────────────────────────── */
+    const seance = await seanceDuJour(aujourdhui);
+    const sujet = themeParId(seance.theme);
+    const passees = await historique(seance.theme);
+
+    const repos = estRepos(seance.theme);
+
+    $('date-du-jour').textContent = dateLongue.format(enDate(aujourdhui));
+    $('etiquette-jour').textContent = repos
+      ? 'Aucune révision prévue'
+      : seance.statut === 'terminee'
+        ? 'Séance terminée'
+        : 'Matière du jour';
+    $('titre-jour').textContent = `${sujet?.icone ?? ''} ${sujet?.nom ?? seance.theme}`.trim();
+    // Comme sur le tableau de bord : un <span> réaffiché redevient « inline ».
+    $('badge-etendue').classList.toggle('hidden', !seance.etendue);
+    $('badge-etendue').classList.toggle('inline-flex', seance.etendue);
+
+    const nombreRappels = seance.etendue ? Math.min(4, passees.length) : Math.min(2, passees.length);
+    $('resume-jour').textContent = repos
+      ? "Journée de repos : rien n'est programmé aujourd'hui, et la série de jours ne s'en trouve pas rompue. " +
+        'Vous pouvez tout de même ouvrir une séance si l\'envie vous en prend.'
+      : seance.statut === 'terminee'
+        ? `Séance tenue${seance.secondes ? ` en ${formaterDuree(seance.secondes)}` : ''}. ` +
+          `${passees.length} séance(s) de cette matière au total.`
+        : passees.length === 0
+          ? "Première séance sur cette matière : pas de rappel à restituer, on entre directement dans le contenu du jour."
+          : `Au programme : restitution à blanc ${
+              nombreRappels === 1 ? 'de la séance précédente' : `des ${nombreRappels} séances précédentes`
+            } de cette matière, puis contenu du jour et note de séance.`;
+
+    const urlSeance = `${lien('/planification/seance/')}?jour=${aujourdhui}`;
+    $('lien-seance').setAttribute('href', urlSeance);
+    $('lien-seance').textContent = repos
+      ? 'Réviser quand même'
+      : seance.statut === 'terminee'
+        ? 'Reprendre la séance'
+        : seance.id
+          ? 'Poursuivre la séance'
+          : 'Commencer la séance';
+
+    /* ── Planning : une semaine derrière, deux devant ────────────────── */
+    await peindrePlanning(aujourdhui);
+
+    /* ── Rotation ────────────────────────────────────────────────────── */
+    await peindreRotation();
+
+    /* ── Suggestion trimestrielle ────────────────────────────────────── */
+    const suggestion = await suggestionTrimestrielle(aujourdhui);
+    if (suggestion) {
+      $('texte-trimestre').textContent =
+        `Depuis le ${dateCourte.format(enDate(suggestion.depuis))}, ${pluriel(suggestion.seances.length, 'séance')} ` +
+        'ont été tenues. C\'est le moment, à titre indicatif, de reprendre les éléments des trois derniers mois — ' +
+        'vos notes de séance en sont le point de départ.';
+      $('banniere-trimestre').classList.remove('hidden');
+      $('ecarter-trimestre').addEventListener('click', async () => {
+        await ecarterSuggestionTrimestrielle(aujourdhui);
+        $('banniere-trimestre').classList.add('hidden');
+      });
+    }
+  }
+
+  async function peindrePlanning(aujourdhui: string) {
+    const debut = ajouterJours(aujourdhui, -7);
+    const fin = ajouterJours(aujourdhui, 13);
+    const jours = await planning(debut, fin);
+    const grille = $('grille-planning');
+    grille.innerHTML = '';
+
+    for (const entree of jours) {
+      const sujet = themeParId(entree.themeId);
+      const passe = entree.jour < aujourdhui;
+      const cejour = entree.jour === aujourdhui;
+      const terminee = entree.seance?.statut === 'terminee';
+
+      const carte = document.createElement('article');
+      carte.className = [
+        'rounded-xl border p-4 transition',
+        cejour
+          ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950/40'
+          : terminee
+            ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+            : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900',
+        passe && !terminee ? 'opacity-60' : '',
+      ].join(' ');
+
+      const entete = document.createElement('div');
+      entete.className = 'flex items-baseline justify-between gap-2';
+      const date = document.createElement('p');
+      date.className = 'etiquette text-slate-500 dark:text-slate-400';
+      date.textContent = dateCourte.format(enDate(entree.jour));
+      const etat = document.createElement('span');
+      etat.className = 'shrink-0 text-xs font-medium';
+      if (terminee) {
+        etat.className += ' text-emerald-700 dark:text-emerald-300';
+        etat.textContent = '✓ terminée';
+      } else if (cejour) {
+        etat.className += ' text-indigo-700 dark:text-indigo-300';
+        etat.textContent = "aujourd'hui";
+      } else if (passe) {
+        etat.className += ' text-slate-400 dark:text-slate-500';
+        etat.textContent = 'non tenue';
+      }
+      entete.append(date, etat);
+
+      const titre = document.createElement('p');
+      titre.className = 'mt-1 font-semibold text-slate-900 dark:text-white';
+      titre.textContent = `${sujet?.icone ?? ''} ${sujet?.nom ?? entree.themeId}`.trim();
+
+      carte.append(entete, titre);
+
+      const marques = document.createElement('div');
+      marques.className = 'mt-2 flex flex-wrap gap-1.5';
+      if (entree.etendue) {
+        const badge = document.createElement('span');
+        badge.className =
+          'rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300';
+        badge.textContent = 'Révision du mois';
+        marques.appendChild(badge);
+      }
+      if (entree.reassigne) {
+        const badge = document.createElement('span');
+        badge.className =
+          'rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-300';
+        badge.textContent = 'Réassignée';
+        marques.appendChild(badge);
+      }
+      if (estRepos(entree.themeId)) {
+        const badge = document.createElement('span');
+        badge.className =
+          'rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800 uppercase dark:bg-sky-950 dark:text-sky-300';
+        badge.textContent = 'Aucune révision';
+        marques.appendChild(badge);
+      }
+      if (marques.childElementCount) carte.appendChild(marques);
+
+      // Un jour déjà tenu n'est plus modifiable : son thème fait partie de
+      // l'historique sur lequel reposent les rappels n-1 et n-2.
+      if (!terminee) {
+        const actions = document.createElement('div');
+        actions.className = 'mt-3 flex flex-wrap items-center gap-2';
+
+        const selecteur = document.createElement('select');
+        selecteur.className =
+          'min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100';
+        selecteur.setAttribute('aria-label', `Matière du ${dateCourte.format(enDate(entree.jour))}`);
+        for (const t of THEMES_ASSIGNABLES) {
+          const option = document.createElement('option');
+          option.value = t.id;
+          option.textContent = t.id === 'repos' ? '— Repos, aucune révision —' : t.nom;
+          option.selected = t.id === entree.themeId;
+          selecteur.appendChild(option);
+        }
+        selecteur.addEventListener('change', async () => {
+          await reassigner(entree.jour, selecteur.value);
+          await peindrePlanning(aujourdhui);
+        });
+        actions.appendChild(selecteur);
+
+        if (entree.jour >= aujourdhui) {
+          const decaler = document.createElement('button');
+          decaler.type = 'button';
+          decaler.className =
+            'min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800';
+          decaler.textContent = 'Décaler ↓';
+          decaler.title = 'Échanger cette séance avec celle du lendemain';
+          decaler.addEventListener('click', async () => {
+            try {
+              await echanger(entree.jour, ajouterJours(entree.jour, 1));
+              await peindrePlanning(aujourdhui);
+            } catch (e) {
+              alert((e as Error).message);
+            }
+          });
+          actions.appendChild(decaler);
+        }
+
+        carte.appendChild(actions);
+      }
+
+      grille.appendChild(carte);
+    }
+  }
+
+  async function peindreRotation() {
+    const reglages = await lireReglages();
+    const grille = $('grille-rotation');
+    grille.innerHTML = '';
+
+    // Lundi en premier : c'est ainsi que se lit une semaine, même si
+    // « Date.getDay() » commence au dimanche.
+    const ordre = [1, 2, 3, 4, 5, 6, 0];
+    for (const index of ordre) {
+      const bloc = document.createElement('div');
+      bloc.className =
+        'rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900';
+
+      const etiquette = document.createElement('label');
+      etiquette.className = 'etiquette text-slate-500 dark:text-slate-400';
+      etiquette.textContent = JOURS_SEMAINE[index];
+      etiquette.setAttribute('for', `rotation-${index}`);
+
+      const selecteur = document.createElement('select');
+      selecteur.id = `rotation-${index}`;
+      selecteur.className =
+        'mt-2 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100';
+      for (const t of THEMES_ASSIGNABLES) {
+        const option = document.createElement('option');
+        option.value = t.id;
+        option.textContent = t.id === 'repos' ? '— Repos, aucune révision —' : t.nom;
+        option.selected = t.id === reglages.rotation[index];
+        selecteur.appendChild(option);
+      }
+      selecteur.addEventListener('change', async () => {
+        const rotation = [...(await lireReglages()).rotation];
+        rotation[index] = selecteur.value;
+        await ecrireRotation(rotation);
+        const message = $('message-rotation');
+        message.textContent = 'Rotation enregistrée.';
+        message.classList.remove('hidden');
+        await peindrePlanning(jourISO());
+        await peindreRotation();
+      });
+
+      bloc.append(etiquette, selecteur);
+      grille.appendChild(bloc);
+    }
+  }
+
+  auDeverrouillage(async () => {
+    await peindre();
+    $('chargement').classList.add('hidden');
+    $('planification').classList.remove('hidden');
+  });
+</script>

@@ -1,0 +1,23 @@
+---
+import Base from '../../layouts/Base.astro';
+import Editeur from '../../features/editeur/Editeur.svelte';
+---
+
+<Base titre="Éditeur" actif="editeur">
+  <div id="chargement" class="py-20 text-center text-slate-400">Déchiffrement du contenu…</div>
+  <div id="editeur" class="hidden">
+    <!-- client:only : l'éditeur et ses bibliothèques (Markdown, YAML, zip) ne
+         sont chargés que sur cette page. -->
+    <Editeur client:only="svelte" />
+  </div>
+</Base>
+
+<script>
+  import { auDeverrouillage } from '../../lib/chargement';
+
+  // L'éditeur reste derrière l'écran de connexion, comme le reste du site.
+  auDeverrouillage(() => {
+    document.getElementById('chargement')!.classList.add('hidden');
+    document.getElementById('editeur')!.classList.remove('hidden');
+  });
+</script>
