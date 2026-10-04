@@ -43,7 +43,7 @@ const onglets = [
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <!-- Non-indexation : aucun moteur ne doit référencer ce site. -->
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
     <meta name="googlebot" content="noindex, nofollow" />
@@ -51,6 +51,14 @@ const onglets = [
     <meta name="color-scheme" content="light dark" />
     <title>{titre} · {config.titre}</title>
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <!-- Installation comme application (écran d'accueil du téléphone). -->
+    <link rel="manifest" href={`${base}/manifest.webmanifest`} />
+    <link rel="apple-touch-icon" href={`${base}/icones/apple-touch-icon.png`} />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Révisions" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <script is:inline>
       // Applique le thème avant le premier rendu pour éviter tout clignotement.
       // Trois choix possibles : « clair », « sombre » et « systeme ». Seul le
@@ -87,7 +95,7 @@ const onglets = [
     <div id="application" class="hidden min-h-screen">
       {
         !sansNavigation && (
-          <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
+          <header style="padding-top: env(safe-area-inset-top)" class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
             <div class="bandeau-tricolore"></div>
             <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
               <a
@@ -95,13 +103,13 @@ const onglets = [
                 class="flex shrink-0 items-center gap-2 font-semibold text-slate-900 dark:text-white"
               >
                 <span class="text-lg">🎓</span>
-                <span class="hidden sm:inline">{config.titre}</span>
+                <span class="hidden md:inline">{config.titre}</span>
               </a>
 
               <nav
                 id="navigation-principale"
                 aria-label="Navigation principale"
-                class="defilement-masque -mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1"
+                class="defilement-masque -mx-1 hidden min-w-0 flex-1 gap-1 overflow-x-auto px-1 md:flex"
               >
                 {onglets.map((onglet) => (
                   <a
@@ -122,7 +130,27 @@ const onglets = [
                 ))}
               </nav>
 
+              <!-- Téléphone : le ruban d'icônes laisse place à un menu déroulant. -->
+              <span class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 md:hidden dark:text-white">
+                {onglets.find((o) => o.id === actif)?.court ?? titre}
+              </span>
+
               <div class="flex shrink-0 items-center gap-1">
+                <button
+                  id="bouton-menu"
+                  type="button"
+                  aria-label="Ouvrir le menu"
+                  aria-expanded="false"
+                  aria-controls="menu-mobile"
+                  class="flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <svg class="icone-menu h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4 7h16M4 12h16M4 17h16" />
+                  </svg>
+                  <svg class="icone-fermer hidden h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
                 <CommutateurTheme />
                 <button
                   id="bouton-verrouiller"
@@ -135,6 +163,32 @@ const onglets = [
                 </button>
               </div>
             </div>
+
+            <nav
+              id="menu-mobile"
+              aria-label="Menu"
+              class="hidden max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-t border-slate-200 px-2 pb-3 md:hidden dark:border-slate-800"
+            >
+              <ul class="grid grid-cols-2 gap-1 pt-2">
+                {onglets.map((onglet) => (
+                  <li>
+                    <a
+                      href={onglet.href}
+                      aria-current={actif === onglet.id ? 'page' : undefined}
+                      class:list={[
+                        'flex min-h-12 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition',
+                        actif === onglet.id
+                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                          : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800',
+                      ]}
+                    >
+                      <span aria-hidden="true" class="text-lg">{onglet.icone}</span>
+                      <span>{onglet.court}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </header>
         )
       }
@@ -156,6 +210,31 @@ const onglets = [
 
       // Le ruban d'onglets déborde dès les écrans étroits : plutôt qu'une barre
       // de défilement sous les icônes, on estompe le bord encore parcourable.
+      // Menu du téléphone : s'ouvre et se referme au bouton, se referme aussi
+      // avec Échap, au toucher en dehors, et quand on choisit une page.
+      const boutonMenu = document.getElementById('bouton-menu');
+      const menuMobile = document.getElementById('menu-mobile');
+      if (boutonMenu && menuMobile) {
+        const basculer = (ouvrir: boolean) => {
+          menuMobile.classList.toggle('hidden', !ouvrir);
+          boutonMenu.setAttribute('aria-expanded', String(ouvrir));
+          boutonMenu.setAttribute('aria-label', ouvrir ? 'Fermer le menu' : 'Ouvrir le menu');
+          boutonMenu.querySelector('.icone-menu')?.classList.toggle('hidden', ouvrir);
+          boutonMenu.querySelector('.icone-fermer')?.classList.toggle('hidden', !ouvrir);
+        };
+        boutonMenu.addEventListener('click', () => basculer(menuMobile.classList.contains('hidden')));
+        menuMobile.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('a')) basculer(false);
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') basculer(false);
+        });
+        document.addEventListener('click', (e) => {
+          const cible = e.target as Node;
+          if (!menuMobile.contains(cible) && !boutonMenu.contains(cible)) basculer(false);
+        });
+      }
+
       const rubanOnglets = document.getElementById('navigation-principale');
       if (rubanOnglets) masquerDebordement(rubanOnglets);
 

@@ -33,6 +33,16 @@ navigateur), puis le site se republie automatiquement en une à trois minutes.
 conversation avec votre cours, puis collez la réponse dans l'import. Chaque
 fiche est contrôlée avant d'être ajoutée.
 
+### Sur téléphone
+
+Le site s'adapte aux petits écrans ; les onglets passent dans un menu ☰.
+Pour l'installer comme une application (icône sur l'écran d'accueil,
+ouverture en plein écran) :
+
+- **iPhone** (Safari) : bouton Partager → « Sur l'écran d'accueil » ;
+- **Android** (Chrome) : menu ⋮ → « Installer l'application » ou « Ajouter à
+  l'écran d'accueil ».
+
 ---
 
 ## Le format d'une fiche

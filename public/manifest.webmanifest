@@ -1,0 +1,17 @@
+{
+  "name": "Révisions de droit",
+  "short_name": "Révisions",
+  "description": "Espace de révision juridique personnel et chiffré.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icones/icone-masquable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
