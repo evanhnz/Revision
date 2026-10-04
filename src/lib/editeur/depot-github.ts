@@ -98,7 +98,9 @@ async function appeler<T>(c: ConfigurationDepot, chemin: string, init: RequestIn
     }
     const messages: Record<number, string> = {
       401: 'jeton GitHub refusé (expiré ou révoqué) : reconfigurez l\'éditeur.',
-      403: 'accès refusé : le jeton n\'a pas les droits nécessaires sur ce dépôt.',
+      403:
+        'accès refusé : le jeton n\'a pas le droit d\'écrire dans ce dépôt. Sur GitHub, modifiez le jeton : ' +
+        'permission « Contents » sur « Read and write ».',
       404: 'dépôt ou branche introuvable, ou jeton sans accès à ce dépôt.',
     };
     throw new ErreurGitHub(messages[reponse.status] ?? `GitHub a répondu ${reponse.status} ${detail}`, reponse.status);
