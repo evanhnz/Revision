@@ -19,7 +19,7 @@ export default {
    * Dépôt GitHub de l'éditeur en ligne : pré-remplit l'écran de connexion de
    * l'éditeur. Le jeton d'accès, lui, se saisit sur chaque appareil.
    */
-  depot: { proprietaire: 'evanhnz', nom: 'revision', branche: 'main' },
+  depot: { proprietaire: 'evanhnz', nom: 'Revision', branche: 'main' },
 
   /**
    * Empreinte SHA-256 du mot de passe, pour un message d'erreur immédiat à la
