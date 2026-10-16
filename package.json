@@ -16,6 +16,7 @@
     "essais:niveau": "tsx scripts/essais-niveau.mts",
     "verifier:pretests": "node scripts/verifier-pretests.mjs",
     "essais:veridical": "tsx scripts/essais-veridical.mts",
+    "essais:synchro": "tsx scripts/essais-synchro.mts",
     "contrastes": "node scripts/verifier-contrastes.mjs",
     "sources:recuperer": "node scripts/sources.mjs dechiffrer",
     "sources:envoyer": "node scripts/sources.mjs chiffrer"

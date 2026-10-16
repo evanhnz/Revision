@@ -205,6 +205,7 @@ const onglets = [
       import { masquerDebordement } from '../lib/defilement';
       import { initGlossaireGlobal } from '../lib/glossaire';
       import { suivreTemps } from '../lib/temps';
+      import { demarrerSynchro } from '../lib/synchro';
 
       initGlossaireGlobal();
 
@@ -249,7 +250,11 @@ const onglets = [
       // Le temps n'est comptabilisé qu'une fois la session ouverte.
       // « quandDeverrouille » et non un écouteur nu : le paquet de cette page
       // peut arriver après l'ouverture de la session (voir lib/auth.ts).
-      quandDeverrouille(() => suivreTemps());
+      quandDeverrouille(() => {
+        suivreTemps();
+        // Synchronisation de la progression entre appareils (voir lib/synchro.ts).
+        demarrerSynchro();
+      });
     </script>
   </body>
 </html>

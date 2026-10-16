@@ -78,7 +78,7 @@ export class ErreurGitHub extends Error {
   }
 }
 
-async function appeler<T>(c: ConfigurationDepot, chemin: string, init: RequestInit = {}): Promise<T> {
+export async function appeler<T>(c: ConfigurationDepot, chemin: string, init: RequestInit = {}): Promise<T> {
   const reponse = await fetch(`${API}${chemin}`, {
     ...init,
     cache: 'no-store',
@@ -108,7 +108,7 @@ async function appeler<T>(c: ConfigurationDepot, chemin: string, init: RequestIn
   return (reponse.status === 204 ? null : await reponse.json()) as T;
 }
 
-const depotChemin = (c: ConfigurationDepot) =>
+export const depotChemin = (c: ConfigurationDepot) =>
   `/repos/${encodeURIComponent(c.proprietaire)}/${encodeURIComponent(c.nom)}`;
 
 /** Vérifie la configuration : le dépôt existe et le jeton peut y écrire. */

@@ -872,6 +872,10 @@ export async function exporterTout() {
     difficultes: await base.getAll('difficultes'),
     planification: await lireReglagesPlanification(),
     reglagesSession: (await base.get('etat', 'reglagesSession')) as ReglagesSession | undefined,
+    // Réglages de niveau (niveau.ts) : absents des premières sauvegardes, ils
+    // étaient effacés par un import en mode « remplacement ».
+    reglagesContenu: (await base.get('etat', 'reglagesContenu')) as unknown,
+    reglagesNiveau: (await base.get('etat', 'reglagesNiveau')) as unknown,
   };
 }
 
@@ -1071,6 +1075,8 @@ export async function importerTout(donnees: ExportProgression, mode: 'fusion' | 
 
   if (donnees.planification) await ecrireReglagesPlanification(donnees.planification);
   if (donnees.reglagesSession) await ecrireReglagesSession(donnees.reglagesSession);
+  if (donnees.reglagesContenu !== undefined) await base.put('etat', donnees.reglagesContenu, 'reglagesContenu');
+  if (donnees.reglagesNiveau !== undefined) await base.put('etat', donnees.reglagesNiveau, 'reglagesNiveau');
 }
 
 /**
@@ -1087,7 +1093,19 @@ export async function effacerVeridical() {
   await tx.done;
 }
 
+/**
+ * Date de la dernière remise à zéro sur cet appareil. La synchronisation la
+ * transmet aux autres appareils : sans elle, la copie d'un autre appareil
+ * ferait réapparaître la progression effacée.
+ */
+export const CLE_REINITIALISATION = 'revision.synchro.reinitialisation';
+
 /** Efface toute la progression locale (bouton « tout réinitialiser »). */
 export async function toutEffacer() {
   await viderProgression(await db());
+  try {
+    localStorage.setItem(CLE_REINITIALISATION, new Date().toISOString());
+  } catch {
+    /* navigation privée */
+  }
 }

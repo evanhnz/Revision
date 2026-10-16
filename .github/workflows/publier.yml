@@ -8,6 +8,8 @@ name: Publier le site
 on:
   push:
     branches: [main]
+    # La copie de synchronisation de la progression ne change rien au site.
+    paths-ignore: ['progression/**']
   workflow_dispatch:
 
 permissions:

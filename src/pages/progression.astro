@@ -5,10 +5,24 @@ import Base from '../layouts/Base.astro';
 <Base titre="Sauvegarde" actif="progression">
   <h1 class="mb-1 text-2xl font-bold text-slate-900 dark:text-white">Sauvegarde et synchronisation</h1>
   <p class="mb-6 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-    Votre progression (XP, série, badges, répétition espacée, résultats de quiz) est stockée
-    uniquement dans ce navigateur. Pour passer d'un appareil à l'autre, exportez un fichier
-    JSON ici, puis importez-le sur l'autre appareil.
+    Votre progression (XP, série, badges, répétition espacée, résultats de quiz) est
+    synchronisée automatiquement entre vos appareils, chiffrée, dans votre dépôt GitHub.
+    L'export et l'import ci-dessous restent disponibles comme sauvegarde manuelle.
   </p>
+
+  <section id="synchro" class="mb-8 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <h2 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Synchronisation entre appareils</h2>
+    <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      Elle a lieu à l'ouverture de l'application, toutes les deux minutes pendant les révisions
+      et quand vous la quittez. La progression la plus récente l'emporte ; la question n'est
+      posée qu'en cas de contradiction nette (remise à zéro d'un côté, progrès de l'autre).
+      Chaque appareil doit avoir l'éditeur connecté avec votre jeton GitHub.
+    </p>
+    <p id="statut-synchro" class="mb-4 text-sm text-slate-700 dark:text-slate-200">…</p>
+    <button id="synchroniser" class="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-700">
+      ⟳ Synchroniser maintenant
+    </button>
+  </section>
 
   <section id="reglages" class="mb-8 rounded-2xl border border-slate-200 bg-white p-5 target:ring-2 target:ring-indigo-400 dark:border-slate-800 dark:bg-slate-900">
     <p class="etiquette text-indigo-600 dark:text-indigo-400">Rythme de travail</p>
@@ -111,6 +125,7 @@ import Base from '../layouts/Base.astro';
 
 <script>
   import { auDeverrouillage } from '../lib/chargement';
+  import { EVENEMENT_SYNCHRO, statutSynchro, synchroniser, type StatutSynchro } from '../lib/synchro';
   import {
     exporterTout,
     importerTout,
@@ -309,9 +324,29 @@ import Base from '../layouts/Base.astro';
 
   // « auDeverrouillage » : barre de progression, garde-fou de 5 secondes et
   // exécution même si ce script arrive après l'ouverture de la session.
+  function afficherSynchro(st: StatutSynchro) {
+    const element = $('statut-synchro');
+    const heure = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    element.textContent =
+      st.etat === 'en-cours'
+        ? 'Synchronisation en cours…'
+        : st.etat === 'ok'
+          ? `✓ ${st.message} (${heure.format(new Date(st.le))}).`
+          : st.etat === 'erreur'
+            ? `⚠ Échec de la synchronisation : ${st.message}`
+            : st.message;
+  }
+
   auDeverrouillage(async () => {
     await afficherResume();
     await brancherReglages();
+
+    afficherSynchro(statutSynchro());
+    document.addEventListener(EVENEMENT_SYNCHRO, (e) => afficherSynchro((e as CustomEvent<StatutSynchro>).detail));
+    $('synchroniser').addEventListener('click', async () => {
+      await synchroniser();
+      await afficherResume();
+    });
 
     $('exporter').addEventListener('click', async () => {
       const donnees = await exporterTout();
