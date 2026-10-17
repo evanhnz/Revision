@@ -379,6 +379,45 @@ export interface SessionDgfip {
   parRubrique: ScoreRubriqueDgfip[];
 }
 
+/**
+ * Une ligne de l'historique des révisions, comme le « revlog » d'Anki : une
+ * entrée par note donnée à une flashcard, jamais modifiée ensuite.
+ *
+ * C'est elle qui rend la synchronisation exacte. Fusionner deux historiques,
+ * c'est en faire l'union ; et quand la même carte a été révisée sur deux
+ * appareils sans synchronisation entre-temps, on rejoue toutes ses révisions
+ * dans l'ordre chronologique dans FSRS (voir synchro-fusion.ts), au lieu de ne
+ * garder que la dernière.
+ */
+export interface EntreeRevlog {
+  /** Identifiant unique : horodatage en base 36 et suffixe aléatoire. */
+  id: string;
+  carteId: string;
+  /** Horodatage ISO de la révision. */
+  le: string;
+  note: Note;
+  /**
+   * État de la carte juste avant cette révision. Seule la première révision
+   * enregistrée d'une carte le porte : c'est le point de départ du rejeu.
+   */
+  avant?: EtatCarte;
+}
+
+/**
+ * Compteurs d'un jour pour un appareil donné.
+ *
+ * Chaque appareil n'incrémente que ses propres compteurs : deux copies se
+ * fusionnent donc en prenant, pour chaque appareil, le plus grand des deux
+ * (compteur CRDT). Les totaux du jour en sont la somme, exacte quel que soit
+ * l'ordre des synchronisations.
+ */
+export interface ActiviteAppareil extends Omit<Jour, 'jour'> {
+  /** « AAAA-MM-JJ|appareil ». */
+  id: string;
+  jour: string;
+  appareil: string;
+}
+
 export interface Profil {
   xp: number;
   streakCourante: number;
@@ -404,10 +443,12 @@ interface SchemaRevinsp extends DBSchema {
   relationnel: { key: number; value: SessionRelationnelle; indexes: { le: string } };
   vmSeuils: { key: string; value: SeuilVeridical; indexes: { famille: string } };
   vmSessions: { key: number; value: SessionVeridical; indexes: { le: string } };
+  revlog: { key: string; value: EntreeRevlog; indexes: { carteId: string } };
+  activite: { key: string; value: ActiviteAppareil; indexes: { jour: string } };
 }
 
 const NOM_BASE = 'revinsp';
-const VERSION = 9;
+const VERSION = 10;
 
 let promesse: Promise<IDBPDatabase<SchemaRevinsp>> | null = null;
 
@@ -476,6 +517,13 @@ export function db() {
         const competences = base.createObjectStore('competences', { keyPath: 'clef' });
         competences.createIndex('matiere', 'matiere');
         base.createObjectStore('difficultes', { keyPath: 'id' });
+      }
+      if (ancienneVersion < 10) {
+        // Historique des révisions et compteurs par appareil (synchronisation).
+        const revlog = base.createObjectStore('revlog', { keyPath: 'id' });
+        revlog.createIndex('carteId', 'carteId');
+        const activite = base.createObjectStore('activite', { keyPath: 'id' });
+        activite.createIndex('jour', 'jour');
       }
       if (ancienneVersion >= 1 && ancienneVersion < 7) {
         // FSRS remplace SM-2. Les cartes déjà vues repartent d'un état de
@@ -563,18 +611,40 @@ export async function lireJour(jour: string): Promise<Jour> {
   );
 }
 
-export async function majJour(jour: string, delta: Partial<Omit<Jour, 'jour'>>) {
+const COMPTEURS_JOUR = ['xp', 'cartes', 'quiz', 'bonnes', 'reponses', 'secondes'] as const;
+
+/** Identifiant aléatoire et triable dans le temps. */
+export function nouvelId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Identifiant de cet appareil, créé à la première utilisation (effacé avec la progression). */
+export async function identifiantAppareil(): Promise<string> {
   const base = await db();
-  const actuel = await lireJour(jour);
-  await base.put('jours', {
-    ...actuel,
-    xp: actuel.xp + (delta.xp ?? 0),
-    cartes: actuel.cartes + (delta.cartes ?? 0),
-    quiz: actuel.quiz + (delta.quiz ?? 0),
-    bonnes: actuel.bonnes + (delta.bonnes ?? 0),
-    reponses: actuel.reponses + (delta.reponses ?? 0),
-    secondes: actuel.secondes + (delta.secondes ?? 0),
-  });
+  let id = (await base.get('etat', 'appareil')) as string | undefined;
+  if (!id) {
+    id = nouvelId();
+    await base.put('etat', id, 'appareil');
+  }
+  return id;
+}
+
+export async function majJour(jour: string, delta: Partial<Omit<Jour, 'jour'>>) {
+  const appareil = await identifiantAppareil();
+  const base = await db();
+  // Les totaux du jour et les compteurs de cet appareil bougent ensemble.
+  const tx = base.transaction(['jours', 'activite'], 'readwrite');
+  const vide = { xp: 0, cartes: 0, quiz: 0, bonnes: 0, reponses: 0, secondes: 0 };
+  const actuel = (await tx.objectStore('jours').get(jour)) ?? { jour, ...vide };
+  const id = `${jour}|${appareil}`;
+  const activite = (await tx.objectStore('activite').get(id)) ?? { id, jour, appareil, ...vide };
+  for (const champ of COMPTEURS_JOUR) {
+    actuel[champ] += delta[champ] ?? 0;
+    activite[champ] += delta[champ] ?? 0;
+  }
+  await tx.objectStore('jours').put(actuel);
+  await tx.objectStore('activite').put(activite);
+  await tx.done;
 }
 
 export async function tousLesJours(): Promise<Jour[]> {
@@ -839,6 +909,8 @@ const MAGASINS_PROGRESSION = [
   'journal',
   'competences',
   'difficultes',
+  'revlog',
+  'activite',
 ] as const;
 
 /** Vide tous les magasins de progression, dans une seule transaction. */
@@ -876,6 +948,8 @@ export async function exporterTout() {
     // étaient effacés par un import en mode « remplacement ».
     reglagesContenu: (await base.get('etat', 'reglagesContenu')) as unknown,
     reglagesNiveau: (await base.get('etat', 'reglagesNiveau')) as unknown,
+    revlog: await base.getAll('revlog'),
+    activite: await base.getAll('activite'),
   };
 }
 
@@ -895,7 +969,13 @@ export async function importerTout(donnees: ExportProgression, mode: 'fusion' | 
   // « Remplacement » veut dire ce qu'il dit : on efface **toute** la progression
   // locale avant de restaurer, sans quoi les magasins non vidés accumuleraient
   // les enregistrements importés par-dessus les anciens.
-  if (mode === 'remplacement') await viderProgression(base);
+  if (mode === 'remplacement') {
+    // L'identité de l'appareil survit : sans elle, chaque copie reçue lui
+    // donnerait un nouvel identifiant, et ses compteurs s'éparpilleraient.
+    const appareil = await base.get('etat', 'appareil');
+    await viderProgression(base);
+    if (appareil) await base.put('etat', appareil, 'appareil');
+  }
 
   const profilLocal = await lireProfil();
   const profilImporte = { ...PROFIL_PAR_DEFAUT, ...(donnees.profil ?? {}) };
@@ -916,12 +996,31 @@ export async function importerTout(donnees: ExportProgression, mode: 'fusion' | 
         },
   );
 
-  for (const carte of donnees.cartes ?? []) {
-    const locale = mode === 'fusion' ? await base.get('cartes', carte.id) : undefined;
-    // En fusion, on garde la révision la plus récente.
-    const gagnante =
-      locale && (locale.derniereRevision ?? '') > (carte.derniereRevision ?? '') ? locale : carte;
-    await base.put('cartes', gagnante);
+  {
+    // Une seule transaction : la synchronisation réécrit ainsi des milliers de
+    // cartes et de lignes d'historique sans attendre une validation par ligne.
+    const tx = base.transaction(['cartes', 'revlog', 'activite'], 'readwrite');
+    const cartes = tx.objectStore('cartes');
+    for (const carte of donnees.cartes ?? []) {
+      const locale = mode === 'fusion' ? await cartes.get(carte.id) : undefined;
+      // En fusion, on garde la révision la plus récente.
+      const gagnante =
+        locale && (locale.derniereRevision ?? '') > (carte.derniereRevision ?? '') ? locale : carte;
+      void cartes.put(gagnante);
+    }
+    // Historique : union (les identifiants sont uniques).
+    for (const entree of donnees.revlog ?? []) void tx.objectStore('revlog').put(entree);
+    // Compteurs par appareil : chacun ne fait que croître, on garde le plus grand.
+    for (const a of donnees.activite ?? []) {
+      const locale = mode === 'fusion' ? await tx.objectStore('activite').get(a.id) : undefined;
+      if (!locale) void tx.objectStore('activite').put(a);
+      else {
+        const max = { ...locale };
+        for (const champ of COMPTEURS_JOUR) max[champ] = Math.max(locale[champ], a[champ]);
+        void tx.objectStore('activite').put(max);
+      }
+    }
+    await tx.done;
   }
 
   for (const fiche of donnees.fiches ?? []) {

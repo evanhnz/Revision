@@ -3,9 +3,15 @@
  *
  * La progression vit dans le navigateur (IndexedDB). Pour la partager, une
  * copie chiffrée (AES-256, clé de la session) et compressée est rangée dans le
- * dépôt GitHub, dans « progression/progression.json.enc », avec le jeton de
- * l'éditeur. Ce dossier est exclu de la publication : une synchronisation ne
- * relance pas la construction du site.
+ * dossier « progression/ » du dépôt GitHub, avec le jeton de l'éditeur. Ce
+ * dossier est exclu de la publication : une synchronisation ne relance pas la
+ * construction du site.
+ *
+ * L'historique des révisions grossit sans cesse ; pour que chaque envoi reste
+ * léger, les mois passés sont archivés à part (« revlog-AAAA-MM.json.enc »), et
+ * un fichier d'archive n'est réécrit que si son contenu change. Le fichier
+ * principal (« progression.json.enc ») porte l'état et le mois en cours. Tous
+ * les fichiers d'un envoi partent dans un seul commit.
  *
  * À chaque synchronisation, on compare deux choses à la dernière
  * synchronisation réussie de cet appareil :
@@ -23,22 +29,32 @@
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 import { obtenirCle } from './auth';
 import { sha256Hex } from './crypto';
-import { CLE_REINITIALISATION, exporterTout, importerTout, type ExportProgression } from './db';
-import { appeler, depotChemin, ErreurGitHub, lireConfiguration, type ConfigurationDepot } from './editeur/depot-github';
+import { CLE_REINITIALISATION, exporterTout, importerTout, type EntreeRevlog, type ExportProgression } from './db';
+import {
+  appeler,
+  depotChemin,
+  ErreurGitHub,
+  lireBlob,
+  lireConfiguration,
+  type ConfigurationDepot,
+} from './editeur/depot-github';
 import { estVide, extraireBase, fusionner, texteStable, type BaseFusion } from './synchro-fusion';
 import { notifier } from './ui';
 
-const CHEMIN = 'progression/progression.json.enc';
+const DOSSIER = 'progression';
+const PRINCIPAL = 'progression.json.enc';
+const archive = (mois: string) => `revlog-${mois}.json.enc`;
+const MOTIF_ARCHIVE = /^revlog-(\d{4}-\d{2})\.json\.enc$/;
 const CLE_ETAT = 'revision.synchro';
 export const EVENEMENT_SYNCHRO = 'revision:synchro';
 
 /** Intervalle minimal entre deux envois pendant qu'on révise (un envoi = un commit). */
-const DELAI_ENVOI = 2 * 60_000;
+const DELAI_ENVOI = 5 * 60_000;
 const DELAI_VERIFICATION_LOCALE = 20_000;
 const DELAI_VERIFICATION_DISTANTE = 5 * 60_000;
 
 interface EtatSynchro {
-  /** Empreinte Git de la copie du dépôt à la dernière synchronisation. */
+  /** Signature des fichiers du dépôt (noms et empreintes Git) à la dernière synchronisation. */
   sha: string | null;
   /** Empreinte de la progression locale à la dernière synchronisation. */
   empreinte: string;
@@ -113,62 +129,147 @@ function depuisBase64(b64: string): Uint8Array {
   return octets;
 }
 
-async function chiffrer(cle: CryptoKey, copie: CopieDistante): Promise<string> {
+async function chiffrer(cle: CryptoKey, objet: unknown): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const clair = gzipSync(strToU8(JSON.stringify(copie)), { level: 9 });
+  const clair = gzipSync(strToU8(JSON.stringify(objet)), { level: 9 });
   const chiffre = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv as BufferSource }, cle, clair as BufferSource);
   return JSON.stringify({ v: 2, gz: true, iv: versBase64(iv), ct: versBase64(new Uint8Array(chiffre)) }) + '\n';
 }
 
-async function dechiffrer(cle: CryptoKey, enveloppe: string): Promise<CopieDistante> {
+async function dechiffrer<T>(cle: CryptoKey, enveloppe: string): Promise<T> {
   const { iv, ct } = JSON.parse(enveloppe) as { iv: string; ct: string };
   const clair = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: depuisBase64(iv) as BufferSource },
     cle,
     depuisBase64(ct) as BufferSource,
   );
-  const copie = JSON.parse(strFromU8(gunzipSync(new Uint8Array(clair)))) as CopieDistante;
-  if (copie?.format !== 'revision-synchro') throw new Error('Copie de progression illisible.');
-  return copie;
+  return JSON.parse(strFromU8(gunzipSync(new Uint8Array(clair)))) as T;
 }
+
+/** Mois local d'une révision, « AAAA-MM ». */
+function moisDe(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Empreinte du contenu d'une archive, pour ne la réécrire que si elle change. */
+const empreinteArchive = (entrees: EntreeRevlog[]) =>
+  sha256Hex(JSON.stringify([...entrees].sort((a, b) => a.id.localeCompare(b.id))));
 
 /* ── Dépôt ────────────────────────────────────────────────────────────────── */
 
-async function lireDistant(c: ConfigurationDepot): Promise<{ sha: string; enveloppe: string } | null> {
-  let meta: { sha: string; content?: string; encoding?: string };
+interface Distant {
+  /** Commit sur lequel la lecture a été faite : l'envoi s'y raccroche. */
+  tete: string;
+  signature: string;
+  copie: CopieDistante;
+  /** Empreinte du contenu de chaque archive mensuelle lue. */
+  archives: Map<string, string>;
+}
+
+async function teteBranche(c: ConfigurationDepot): Promise<string> {
+  const ref = await appeler<{ object: { sha: string } }>(
+    c,
+    `${depotChemin(c)}/git/ref/heads/${encodeURIComponent(c.branche)}`,
+  );
+  return ref.object.sha;
+}
+
+async function lireDistant(c: ConfigurationDepot, cle: CryptoKey): Promise<Distant | { tete: string; vide: true }> {
+  const tete = await teteBranche(c);
+  let fichiers: { name: string; sha: string; type: string }[];
   try {
-    meta = await appeler(c, `${depotChemin(c)}/contents/${CHEMIN}?ref=${encodeURIComponent(c.branche)}`);
+    fichiers = await appeler(c, `${depotChemin(c)}/contents/${DOSSIER}?ref=${tete}`);
   } catch (e) {
-    if (e instanceof ErreurGitHub && e.statut === 404) return null;
+    if (e instanceof ErreurGitHub && e.statut === 404) return { tete, vide: true };
     throw e;
   }
-  // Au-delà d'un mégaoctet, l'API ne renvoie pas le contenu : on passe par le blob.
-  let b64 = meta.encoding === 'base64' ? meta.content : undefined;
-  if (!b64) {
-    b64 = (await appeler<{ content: string }>(c, `${depotChemin(c)}/git/blobs/${meta.sha}`)).content;
+  const principal = fichiers.find((f) => f.name === PRINCIPAL);
+  if (!principal) return { tete, vide: true };
+  const utiles = fichiers.filter((f) => f.name === PRINCIPAL || MOTIF_ARCHIVE.test(f.name));
+  const signature = utiles
+    .map((f) => `${f.name}:${f.sha}`)
+    .sort()
+    .join(',');
+
+  const copie = await dechiffrer<CopieDistante>(cle, await lireBlob(c, principal.sha));
+  if (copie?.format !== 'revision-synchro') throw new Error('Copie de progression illisible.');
+  const revlog: EntreeRevlog[] = [...(copie.donnees.revlog ?? [])];
+  const archives = new Map<string, string>();
+  for (const f of utiles) {
+    const mois = MOTIF_ARCHIVE.exec(f.name)?.[1];
+    if (!mois) continue;
+    // Les archives sont mises en cache par empreinte : seules les nouvelles se téléchargent.
+    const entrees = await dechiffrer<EntreeRevlog[]>(cle, await lireBlob(c, f.sha));
+    archives.set(mois, await empreinteArchive(entrees));
+    revlog.push(...entrees);
   }
-  return { sha: meta.sha, enveloppe: strFromU8(depuisBase64(b64)) };
+  copie.donnees = { ...copie.donnees, revlog };
+  return { tete, signature, copie, archives };
 }
 
 class ConflitEnvoi extends Error {}
 
-async function envoyerDistant(c: ConfigurationDepot, enveloppe: string, sha: string | null): Promise<string> {
+/** Envoie la copie en un commit et retourne la nouvelle signature du dossier. */
+async function envoyerDistant(
+  c: ConfigurationDepot,
+  cle: CryptoKey,
+  tete: string,
+  copie: CopieDistante,
+  archivesDistantes: Map<string, string>,
+): Promise<string> {
+  // Les mois passés à part, le mois en cours dans le fichier principal.
+  const courant = moisDe(new Date().toISOString());
+  const parMois = new Map<string, EntreeRevlog[]>();
+  const recentes: EntreeRevlog[] = [];
+  for (const e of copie.donnees.revlog ?? []) {
+    const mois = moisDe(e.le);
+    if (mois >= courant) recentes.push(e);
+    else {
+      const liste = parMois.get(mois);
+      if (liste) liste.push(e);
+      else parMois.set(mois, [e]);
+    }
+  }
+  const fichiers: { path: string; content: string }[] = [];
+  for (const [mois, entrees] of parMois) {
+    if (archivesDistantes.get(mois) === (await empreinteArchive(entrees))) continue;
+    fichiers.push({ path: `${DOSSIER}/${archive(mois)}`, content: await chiffrer(cle, entrees) });
+  }
+  const principal = { ...copie, donnees: { ...copie.donnees, revlog: recentes } };
+  fichiers.push({ path: `${DOSSIER}/${PRINCIPAL}`, content: await chiffrer(cle, principal) });
+
+  const d = depotChemin(c);
+  const parent = await appeler<{ tree: { sha: string } }>(c, `${d}/git/commits/${tete}`);
+  const arbre = await appeler<{ sha: string }>(c, `${d}/git/trees`, {
+    method: 'POST',
+    body: JSON.stringify({
+      base_tree: parent.tree.sha,
+      tree: fichiers.map((f) => ({ path: f.path, mode: '100644', type: 'blob', content: f.content })),
+    }),
+  });
+  const commit = await appeler<{ sha: string }>(c, `${d}/git/commits`, {
+    method: 'POST',
+    body: JSON.stringify({ message: 'Synchronise la progression', tree: arbre.sha, parents: [tete] }),
+  });
   try {
-    const r = await appeler<{ content: { sha: string } }>(c, `${depotChemin(c)}/contents/${CHEMIN}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: 'Synchronise la progression',
-        content: btoa(enveloppe),
-        branch: c.branche,
-        ...(sha ? { sha } : {}),
-      }),
+    // Sans forcer : si la branche a bougé depuis la lecture (autre appareil,
+    // fiche enregistrée), GitHub refuse, et l'on recommence depuis le début.
+    await appeler(c, `${d}/git/refs/heads/${encodeURIComponent(c.branche)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ sha: commit.sha, force: false }),
     });
-    return r.content.sha;
   } catch (e) {
-    // Un autre appareil a envoyé entre-temps : il faut repartir de sa copie.
     if (e instanceof ErreurGitHub && (e.statut === 409 || e.statut === 422)) throw new ConflitEnvoi();
     throw e;
   }
+  // Signature après envoi : celle du dossier dans le nouveau commit.
+  const contenu = await appeler<{ name: string; sha: string }[]>(c, `${d}/contents/${DOSSIER}?ref=${commit.sha}`);
+  return contenu
+    .filter((f) => f.name === PRINCIPAL || MOTIF_ARCHIVE.test(f.name))
+    .map((f) => `${f.name}:${f.sha}`)
+    .sort()
+    .join(',');
 }
 
 /* ── Contradiction : on demande ───────────────────────────────────────────── */
@@ -252,11 +353,12 @@ async function executer(essai = 0): Promise<void> {
   const etat = lireEtat();
   const local = await exporterTout();
   const empreinteLocale = await empreinte(local);
-  const distantBrut = await lireDistant(c);
-  const distant = distantBrut ? await dechiffrer(cle, distantBrut.enveloppe) : null;
+  const lu = await lireDistant(c, cle);
+  const distantBrut = 'vide' in lu ? null : lu;
+  const distant = distantBrut?.copie ?? null;
 
   const localModifie = !etat || etat.empreinte !== empreinteLocale;
-  const distantModifie = Boolean(distantBrut) && (!etat || etat.sha !== distantBrut!.sha);
+  const distantModifie = Boolean(distantBrut) && (!etat || etat.sha !== distantBrut!.signature);
   const reinitLocale = reinitialisationLocale();
   const reinitConnue = [reinitLocale, distant?.reinitialiseeLe].filter(Boolean).sort().pop() ?? null;
 
@@ -300,7 +402,7 @@ async function executer(essai = 0): Promise<void> {
     }
   }
 
-  let sha = distantBrut?.sha ?? null;
+  let sha = distantBrut?.signature ?? null;
   if (aEnvoyer) {
     const copie: CopieDistante = {
       format: 'revision-synchro',
@@ -310,9 +412,9 @@ async function executer(essai = 0): Promise<void> {
       donnees: resultat,
     };
     try {
-      sha = await envoyerDistant(c, await chiffrer(cle, copie), sha);
+      sha = await envoyerDistant(c, cle, lu.tete, copie, distantBrut?.archives ?? new Map());
     } catch (e) {
-      if (e instanceof ConflitEnvoi && essai === 0) return executer(1);
+      if (e instanceof ConflitEnvoi && essai < 2) return executer(essai + 1);
       throw e;
     }
     dernierEnvoi = Date.now();

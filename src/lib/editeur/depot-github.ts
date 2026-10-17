@@ -130,7 +130,7 @@ export async function testerConfiguration(c: ConfigurationDepot): Promise<void> 
 let base: Promise<IDBPDatabase> | null = null;
 const cache = () => (base ??= openDB('revision-editeur', 1, { upgrade: (b) => b.createObjectStore('blobs') }));
 
-async function lireBlob(c: ConfigurationDepot, sha: string): Promise<string> {
+export async function lireBlob(c: ConfigurationDepot, sha: string): Promise<string> {
   try {
     const enCache = (await (await cache()).get('blobs', sha)) as string | undefined;
     if (enCache) return enCache;

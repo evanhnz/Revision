@@ -24,11 +24,12 @@
  */
 import { fsrs, generatorParameters, Rating, type Grade } from 'ts-fsrs';
 import {
-  ecrireCarte,
+  db,
   fsrsNeuf,
+  nouvelId,
   jourISO,
-  lireCarte,
   serialiserFsrs,
+  type EntreeRevlog,
   type EtatCarte,
   type Note,
 } from './db';
@@ -123,10 +124,29 @@ export async function noterEtEnregistrer(
   matiere: string,
   note: Note,
 ): Promise<EtatCarte> {
-  const existante = (await lireCarte(id)) ?? carteNeuve(id, ficheId, matiere);
-  const misAJour = noter({ ...existante, ficheId, matiere }, note);
-  await ecrireCarte(misAJour);
+  const maintenant = new Date();
+  const base = await db();
+  const tx = base.transaction(['cartes', 'revlog'], 'readwrite');
+  const existante = (await tx.objectStore('cartes').get(id)) ?? carteNeuve(id, ficheId, matiere, maintenant);
+  const avant = { ...existante, ficheId, matiere };
+  const misAJour = noter(avant, note, maintenant);
+  // La première révision enregistrée de la carte garde son état de départ :
+  // c'est de là que la synchronisation rejoue l'historique.
+  const dejaJournalisee = (await tx.objectStore('revlog').index('carteId').count(id)) > 0;
+  const entree: EntreeRevlog = { id: nouvelId(), carteId: id, le: maintenant.toISOString(), note };
+  if (!dejaJournalisee) entree.avant = avant;
+  await tx.objectStore('revlog').add(entree);
+  await tx.objectStore('cartes').put(misAJour);
+  await tx.done;
   return misAJour;
+}
+
+/**
+ * Rejoue un historique de révisions à partir d'un état de départ (calcul pur).
+ * Les révisions doivent être triées par date.
+ */
+export function rejouer(depart: EtatCarte, revisions: readonly Pick<EntreeRevlog, 'le' | 'note'>[]): EtatCarte {
+  return revisions.reduce((carte, r) => noter(carte, r.note, new Date(r.le)), depart);
 }
 
 /** Une carte est due si elle n'a jamais été vue ou si son échéance est atteinte. */
