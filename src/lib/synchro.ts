@@ -317,7 +317,29 @@ function demander(question: string, explication: string): Promise<Choix> {
 
 const empreinte = async (d: ExportProgression) => sha256Hex(texteStable(d));
 let enCours: Promise<void> | null = null;
-let dernierEnvoi = 0;
+const CLE_ENVOI = 'revision.synchro.envoi';
+
+/**
+ * Date du dernier envoi, conservée d'une page à l'autre : chaque navigation
+ * recharge le script, et un compteur en mémoire repartait de zéro, si bien que
+ * chaque changement de page envoyait un commit (le temps de lecture, compté en
+ * continu, suffit à modifier la progression).
+ */
+function dernierEnvoi(): number {
+  try {
+    return Number(localStorage.getItem(CLE_ENVOI) ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+function noterEnvoi() {
+  try {
+    localStorage.setItem(CLE_ENVOI, String(Date.now()));
+  } catch {
+    /* ignoré */
+  }
+}
 let interaction = false;
 /** Vrai quand la base locale vient d'être réécrite avec une copie reçue. */
 let recue = false;
@@ -334,11 +356,14 @@ function signalerReception() {
   // Juste après l'ouverture, on recharge pour afficher la progression reçue ;
   // en pleine révision, on se contente de prévenir. Si l'état n'a pas pu être
   // enregistré (navigation privée), on ne recharge pas : ce serait sans fin.
-  if (!interaction && performance.now() < 15_000 && lireEtat()) location.reload();
+  // Hors des pages d'exercice (où un rechargement couperait la session), on
+  // recharge aussi après une interaction : l'écran montre alors la progression reçue.
+  const enExercice = /\/(flashcards|quiz|cog-training|planification|journal|editeur)\//.test(location.pathname);
+  if (lireEtat() && ((!interaction && performance.now() < 15_000) || !enExercice)) location.reload();
   else notifier("Progression mise à jour depuis l'autre appareil", 'succes');
 }
 
-async function executer(essai = 0): Promise<void> {
+async function executer(essai = 0, envoiPermis = true): Promise<void> {
   const c = await lireConfiguration();
   const cle = await obtenirCle();
   if (!c || !cle) {
@@ -369,6 +394,11 @@ async function executer(essai = 0): Promise<void> {
   if (!distant) {
     aEnvoyer = true;
   } else if (!distantModifie) {
+    // Seul cet appareil a changé : l'envoi peut attendre le prochain créneau.
+    if (localModifie && !envoiPermis) {
+      annoncer({ etat: 'ok', le: new Date().toISOString(), message: 'À jour (envoi au prochain créneau)' });
+      return;
+    }
     aEnvoyer = localModifie;
   } else if (!localModifie || estVide(local)) {
     resultat = distant.donnees;
@@ -414,10 +444,10 @@ async function executer(essai = 0): Promise<void> {
     try {
       sha = await envoyerDistant(c, cle, lu.tete, copie, distantBrut?.archives ?? new Map());
     } catch (e) {
-      if (e instanceof ConflitEnvoi && essai < 2) return executer(essai + 1);
+      if (e instanceof ConflitEnvoi && essai < 2) return executer(essai + 1, envoiPermis);
       throw e;
     }
-    dernierEnvoi = Date.now();
+    noterEnvoi();
     if (message === 'À jour') message = 'Progression envoyée';
   }
 
@@ -433,9 +463,13 @@ async function executer(essai = 0): Promise<void> {
   signalerReception();
 }
 
-/** Lance une synchronisation (une seule à la fois). */
-export function synchroniser(): Promise<void> {
-  enCours ??= executer()
+/**
+ * Lance une synchronisation (une seule à la fois). Elle reçoit toujours ce que
+ * l'autre appareil a envoyé ; avec « envoi: false », elle n'envoie les
+ * changements de cet appareil que si l'autre en a fait aussi (fusion).
+ */
+export function synchroniser(options: { envoi?: boolean } = {}): Promise<void> {
+  enCours ??= executer(0, options.envoi ?? true)
     .catch((e) => {
       recue = false;
       annoncer({ etat: 'erreur', message: e instanceof Error ? e.message : String(e) });
@@ -454,6 +488,32 @@ async function localAChange(): Promise<boolean> {
 
 let demarree = false;
 
+/** Bandeau discret, sur toutes les pages, quand la synchronisation ne fonctionne pas. */
+function afficherBandeau(st: StatutSynchro) {
+  let bandeau = document.getElementById('bandeau-synchro');
+  const visible = st.etat === 'inactive' || st.etat === 'erreur';
+  if (!visible) {
+    bandeau?.remove();
+    return;
+  }
+  if (!bandeau) {
+    bandeau = document.createElement('a');
+    bandeau.id = 'bandeau-synchro';
+    bandeau.className =
+      'fixed inset-x-0 bottom-0 z-50 block bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white';
+    bandeau.style.paddingBottom = 'calc(0.5rem + env(safe-area-inset-bottom))';
+    document.body.append(bandeau);
+  }
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  if (st.etat === 'inactive') {
+    bandeau.setAttribute('href', `${base}/editeur/`);
+    bandeau.textContent = '⚠ Progression non synchronisée sur cet appareil : touchez ici pour connecter votre jeton GitHub.';
+  } else {
+    bandeau.setAttribute('href', `${base}/progression/`);
+    bandeau.textContent = `⚠ Synchronisation impossible : ${st.message}`;
+  }
+}
+
 /** À appeler une fois la session ouverte, sur chaque page. */
 export function demarrerSynchro() {
   if (demarree) return;
@@ -461,25 +521,28 @@ export function demarrerSynchro() {
   const noterInteraction = () => (interaction = true);
   addEventListener('pointerdown', noterInteraction, { once: true, capture: true });
   addEventListener('keydown', noterInteraction, { once: true, capture: true });
+  document.addEventListener(EVENEMENT_SYNCHRO, (e) => afficherBandeau((e as CustomEvent<StatutSynchro>).detail));
 
-  void synchroniser();
+  // À chaque page : on reçoit ; on n'envoie que si le dernier envoi date un peu.
+  void synchroniser({ envoi: Date.now() - dernierEnvoi() >= DELAI_ENVOI });
 
-  // Pendant la révision : envoi des changements, au plus toutes les deux minutes.
+  // Pendant la révision : envoi des changements, au plus toutes les cinq minutes.
   setInterval(async () => {
     if (document.visibilityState !== 'visible' || enCours) return;
-    if (Date.now() - dernierEnvoi < DELAI_ENVOI) return;
+    if (Date.now() - dernierEnvoi() < DELAI_ENVOI) return;
     if (statut.etat === 'inactive') return;
     if (await localAChange()) void synchroniser();
   }, DELAI_VERIFICATION_LOCALE);
 
   // Changements faits sur l'autre appareil pendant que celui-ci reste ouvert.
   setInterval(() => {
-    if (document.visibilityState === 'visible' && statut.etat !== 'inactive') void synchroniser();
+    if (document.visibilityState === 'visible' && statut.etat !== 'inactive') void synchroniser({ envoi: false });
   }, DELAI_VERIFICATION_DISTANTE);
 
   // On quitte l'application (ou on change d'appli sur le téléphone) : envoi ;
   // on y revient : réception.
   document.addEventListener('visibilitychange', () => {
-    if (statut.etat !== 'inactive') void synchroniser();
+    if (statut.etat === 'inactive') return;
+    void synchroniser({ envoi: document.visibilityState === 'hidden' });
   });
 }
