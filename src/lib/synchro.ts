@@ -210,6 +210,28 @@ async function lireDistant(c: ConfigurationDepot, cle: CryptoKey): Promise<Dista
 
 class ConflitEnvoi extends Error {}
 
+/**
+ * Type d'appareil, dans le message de commit : permet de voir dans le dépôt
+ * quel appareil synchronise, sans rien révéler de la progression.
+ */
+function appareilLisible(): string {
+  const ua = navigator.userAgent;
+  const type = /iPhone/.test(ua)
+    ? 'iPhone'
+    : /iPad|Macintosh.*Mobile/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+      ? 'iPad'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /Windows/.test(ua)
+          ? 'PC Windows'
+          : /Macintosh/.test(ua)
+            ? 'Mac'
+            : 'autre appareil';
+  const installee =
+    matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+  return installee ? `${type}, appli installée` : `${type}, navigateur`;
+}
+
 /** Envoie la copie en un commit et retourne la nouvelle signature du dossier. */
 async function envoyerDistant(
   c: ConfigurationDepot,
@@ -250,7 +272,7 @@ async function envoyerDistant(
   });
   const commit = await appeler<{ sha: string }>(c, `${d}/git/commits`, {
     method: 'POST',
-    body: JSON.stringify({ message: 'Synchronise la progression', tree: arbre.sha, parents: [tete] }),
+    body: JSON.stringify({ message: `Synchronise la progression (${appareilLisible()})`, tree: arbre.sha, parents: [tete] }),
   });
   try {
     // Sans forcer : si la branche a bougé depuis la lecture (autre appareil,
